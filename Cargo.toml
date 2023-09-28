@@ -1,11 +1,26 @@
 [package]
 name = "usb-gadget"
+description = "Implement USB peripherals on Linux."
+categories = ["asynchronous", "hardware-support", "os::linux-apis"]
+keywords = ["usb", "gadget", "peripheral", "configfs", "functionfs"]
+license = "Apache-2.0"
+repository = "https://github.com/surban/usb-gadget"
+authors = ["Sebastian Urban <surban@surban.net>"]
+rust-version = "1.72"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 futures-util = "0.3"
-tokio = { version = "1.32", features = ["net", "fs", "sync", "rt"] }
+tokio = { version = "1.32", features = ["net", "fs", "process", "sync", "rt"] }
 proc-mounts = "0.3"
 strum = { version = "0.25", features = ["derive"] }
 async-trait = "0.1"
+macaddr = "1.0"
+nix = "0.27"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "time"] }
+tempfile = "3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

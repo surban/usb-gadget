@@ -1,155 +1,305 @@
 /// USB language id.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum Language {
+    /// Afrikaans
     Afrikaans,
+    /// Albanian
     Albanian,
+    /// Arabic (Saudi Arabia)
     ArabicSaudiArabia,
+    /// Arabic (Iraq)
     ArabicIraq,
+    /// Arabic (Egypt)
     ArabicEgypt,
+    /// Arabic (Libya)
     ArabicLibya,
+    /// Arabic (Algeria)
     ArabicAlgeria,
+    /// Arabic (Morocco)
     ArabicMorocco,
+    /// Arabic (Tunisia)
     ArabicTunisia,
+    /// Arabic (Oman)
     ArabicOman,
+    /// Arabic (Yemen)
     ArabicYemen,
+    /// Arabic (Syria)
     ArabicSyria,
+    /// Arabic (Jordan)
     ArabicJordan,
+    /// Arabic (Lebanon)
     ArabicLebanon,
+    /// Arabic (Kuwait)
     ArabicKuwait,
+    /// Arabic (UAE)
     ArabicUAE,
+    /// Arabic (Bahrain)
     ArabicBahrain,
+    /// Arabic (Qatar)
     ArabicQatar,
+    /// Armenian
     Armenian,
+    /// Assamese
     Assamese,
+    /// Azeri (Latin)
     AzeriLatin,
+    /// Azeri (Cyrillic)
     AzeriCyrillic,
+    /// Basque
     Basque,
+    /// Belarussian
     Belarussian,
+    /// Bengali
     Bengali,
+    /// Bulgarian
     Bulgarian,
+    /// Burmese
     Burmese,
+    /// Catalan
     Catalan,
+    /// Chinese (Taiwan)
     ChineseTaiwan,
+    /// Chinese (PRC)
     ChinesePRC,
+    /// Chinese (Hong Kong SAR PRC)
     ChineseHongKongSARPRC,
+    /// Chinese (Singapore)
     ChineseSingapore,
+    /// Chinese (Macau SAR)
     ChineseMacauSAR,
+    /// Croatian
     Croatian,
+    /// Czech
     Czech,
+    /// Danish
     Danish,
+    /// Dutch (Netherlands)
     DutchNetherlands,
+    /// Dutch (Belgium)
     DutchBelgium,
+    /// English (United States)
     #[default]
     EnglishUnitedStates,
+    /// English (United Kingdom)
     EnglishUnitedKingdom,
+    /// English (Australian)
     EnglishAustralian,
+    /// English (Canadian)
     EnglishCanadian,
+    /// English (New Zealand)
     EnglishNewZealand,
+    /// English (Ireland)
     EnglishIreland,
+    /// English (South Africa)
     EnglishSouthAfrica,
+    /// English (Jamaica)
     EnglishJamaica,
+    /// English (Caribbean)
     EnglishCaribbean,
+    /// English (Belize)
     EnglishBelize,
+    /// English (Trinidad)
     EnglishTrinidad,
+    /// English (Zimbabwe)
     EnglishZimbabwe,
+    /// English (Philippines)
     EnglishPhilippines,
+    /// Estonian
     Estonian,
+    /// Faeroese
     Faeroese,
+    /// Farsi
     Farsi,
+    /// Finnish
     Finnish,
+    /// French (Standard)
     FrenchStandard,
+    /// French (Belgian)
     FrenchBelgian,
+    /// French (Canadian)
     FrenchCanadian,
+    /// French (Switzerland)
     FrenchSwitzerland,
+    /// French (Luxembourg)
     FrenchLuxembourg,
+    /// French (Monaco)
     FrenchMonaco,
+    /// Georgian
     Georgian,
+    /// German (Standard)
     GermanStandard,
+    /// German (Switzerland)
     GermanSwitzerland,
+    /// German (Austria)
     GermanAustria,
+    /// German (Luxembourg)
     GermanLuxembourg,
+    /// German (Liechtenstein)
     GermanLiechtenstein,
+    /// Greek
     Greek,
+    /// Gujarati
     Gujarati,
+    /// Hebrew
     Hebrew,
+    /// Hindi
     Hindi,
+    /// Hungarian
     Hungarian,
+    /// Icelandic
     Icelandic,
+    /// Indonesian
     Indonesian,
+    /// Italian (Standard)
     ItalianStandard,
+    /// Italian (Switzerland)
     ItalianSwitzerland,
+    /// Japanese
     Japanese,
+    /// Kannada
     Kannada,
+    /// KashmiriIndia
     KashmiriIndia,
+    /// Kazakh
     Kazakh,
+    /// Konkani
     Konkani,
+    /// Korean
     Korean,
+    /// KoreanJohab
     KoreanJohab,
+    /// Latvian
     Latvian,
+    /// Lithuanian
     Lithuanian,
+    /// LithuanianClassic
     LithuanianClassic,
+    /// Macedonian
     Macedonian,
+    /// Malay (Malaysian)
     MalayMalaysian,
+    /// Malay (Brunei Darussalam)
     MalayBruneiDarussalam,
+    /// Malayalam
     Malayalam,
+    /// Manipuri
     Manipuri,
+    /// Marathi
     Marathi,
+    /// Nepali (India)
     NepaliIndia,
+    /// Norwegian (Bokmal)
     NorwegianBokmal,
+    /// Norwegian (Nynorsk)
     NorwegianNynorsk,
+    /// Oriya
     Oriya,
+    /// Polish
     Polish,
+    /// Portuguese (Brazil)
     PortugueseBrazil,
+    /// Portuguese (Standard)
     PortugueseStandard,
+    /// Punjabi
     Punjabi,
+    /// Romanian
     Romanian,
+    /// Russian
     Russian,
+    /// Sanskrit
     Sanskrit,
+    /// Serbian (Cyrillic)
     SerbianCyrillic,
+    /// Serbian (Latin)
     SerbianLatin,
+    /// Sindhi
     Sindhi,
+    /// Slovak
     Slovak,
+    /// Slovenian
     Slovenian,
+    /// Spanish (Traditional Sort)
     SpanishTraditionalSort,
+    /// Spanish (Mexican)
     SpanishMexican,
+    /// Spanish (ModernSort)
     SpanishModernSort,
+    /// Spanish (Guatemala)
     SpanishGuatemala,
+    /// Spanish (Costa Rica)
     SpanishCostaRica,
+    /// Spanish (Panama)
     SpanishPanama,
+    /// Spanish (Dominican Republic)
     SpanishDominicanRepublic,
+    /// Spanish (Venezuela)
     SpanishVenezuela,
+    /// Spanish (Colombia)
     SpanishColombia,
+    /// Spanish (Peru)
     SpanishPeru,
+    /// Spanish (Argentina)
     SpanishArgentina,
+    /// Spanish (Ecuador)
     SpanishEcuador,
+    /// Spanish (Chile)
     SpanishChile,
+    /// Spanish (Uruguay)
     SpanishUruguay,
+    /// Spanish (Paraguay)
     SpanishParaguay,
+    /// Spanish (Bolivia)
     SpanishBolivia,
+    /// Spanish (El Salvador)
     SpanishElSalvador,
+    /// Spanish (Honduras)
     SpanishHonduras,
+    /// Spanish (Nicaragua)
     SpanishNicaragua,
+    /// Spanish (Puerto Rico)
     SpanishPuertoRico,
+    /// Sutu
     Sutu,
+    /// Swahili (Kenya)
     SwahiliKenya,
+    /// Swedish
     Swedish,
+    /// Swedish (Finland)
     SwedishFinland,
+    /// Tamil
     Tamil,
+    /// Tatar (Tatarstan)
     TatarTatarstan,
+    /// Telugu
     Telugu,
+    /// Thai
     Thai,
+    /// Turkish
     Turkish,
+    /// Ukrainian
     Ukrainian,
+    /// Urdu (Pakistan)
     UrduPakistan,
+    /// Urdu (India)
     UrduIndia,
+    /// Uzbek (Latin)
     UzbekLatin,
+    /// Uzbek (Cyrillic)
     UzbekCyrillic,
+    /// Vietnamese
     Vietnamese,
+    /// HID usage data descriptor
     HidUsageDataDescriptor,
+    /// HID vendor defined 1
     HidVendorDefined1,
+    /// HID vendor defined 2
     HidVendorDefined2,
+    /// HID vendor defined 3
     HidVendorDefined3,
+    /// HID vendor defined 4
     HidVendorDefined4,
+    /// Custom language code
     Other(u16),
 }
 

@@ -12,6 +12,8 @@ use tokio::fs;
 use crate::{trim_os_str, Speed};
 
 /// USB device controller (UDC).
+///
+/// Call [`udcs`] to obtain the controllers available on the system.
 #[derive(Clone)]
 pub struct Udc {
     dir: PathBuf,
@@ -69,7 +71,7 @@ impl Udc {
     /// Indicates current state of the USB Device Controller.
     ///
     /// However not all USB Device Controllers support reporting all states.
-    pub async fn state(&self) -> Result<State> {
+    pub async fn state(&self) -> Result<UdcState> {
         Ok(fs::read_to_string(self.dir.join("state")).await?.trim().parse().unwrap_or_default())
     }
 
@@ -95,14 +97,14 @@ impl Udc {
     }
 }
 
-/// USB device connection state.
+/// USB device controller (UDC) connection state.
 #[derive(
     Default, Debug, strum::Display, strum::EnumString, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 #[non_exhaustive]
-pub enum State {
+pub enum UdcState {
     /// Not attached.
-    #[strum(serialize = "not-attached")]
+    #[strum(serialize = "not attached")]
     NotAttached,
     /// Attached.
     #[strum(serialize = "attached")]
@@ -134,7 +136,7 @@ pub enum State {
     Unknown,
 }
 
-/// Returns a list of available USB device controllers (UDCs).
+/// Gets the available USB device controllers (UDCs) in the system.
 pub async fn udcs() -> Result<Vec<Udc>> {
     let class_dir = Path::new("/sys/class");
     if !class_dir.is_dir() {
@@ -153,4 +155,15 @@ pub async fn udcs() -> Result<Vec<Udc>> {
     }
 
     Ok(udcs)
+}
+
+/// The default USB device controller (UDC) in the system by alphabetical sorting.
+///
+/// A not found error is returned if no UDC is present.
+pub async fn default_udc() -> Result<Udc> {
+    let mut udcs = udcs().await?;
+    udcs.sort_by_key(|udc| udc.name().to_os_string());
+    udcs.into_iter()
+        .next()
+        .ok_or_else(|| Error::new(ErrorKind::NotFound, "no USB device controller (UDC) available"))
 }

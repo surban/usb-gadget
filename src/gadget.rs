@@ -1,22 +1,30 @@
 //! USB gadget.
 
-use std::fmt;
+use nix::errno::Errno;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{OsStr, OsString},
+    fmt,
     io::{Error, ErrorKind, Result},
     os::unix::prelude::{OsStrExt, OsStringExt},
     path::{Path, PathBuf},
 };
-use tokio::{
-    fs::{self, symlink},
-    sync::oneshot,
+use tokio::{fs, sync::oneshot};
+
+use crate::{
+    configfs_dir, function,
+    function::{
+        util::{call_remove_handler, init_remove_handlers},
+        Handle,
+    },
+    hex_u16, hex_u8,
+    lang::Language,
+    request_module, trim_os_str,
+    udc::Udc,
+    Speed,
 };
 
-use crate::trim_os_str;
-use crate::{configfs_dir, function, hex_u16, hex_u8, lang::Language, udc::Udc, Speed};
-
-/// USB device or interface class.
+/// USB gadget or interface class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Class {
     /// Class code.
@@ -34,7 +42,7 @@ impl Class {
     }
 }
 
-/// USB device id.
+/// USB gadget id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id {
     /// Vendor id.
@@ -50,8 +58,8 @@ impl Id {
     }
 }
 
-/// USB device strings.
-#[derive(Debug, Clone)]
+/// USB gadget description strings.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Strings {
     /// Manufacturer name.
     pub manufacturer: String,
@@ -63,17 +71,17 @@ pub struct Strings {
 
 impl Strings {
     /// Creates new USB device strings.
-    pub fn new(manufacturer: &str, product: &str, serial_number: &str) -> Self {
+    pub fn new(manufacturer: impl AsRef<str>, product: impl AsRef<str>, serial_number: impl AsRef<str>) -> Self {
         Self {
-            manufacturer: manufacturer.to_string(),
-            product: product.to_string(),
-            serial_number: serial_number.to_string(),
+            manufacturer: manufacturer.as_ref().to_string(),
+            product: product.as_ref().to_string(),
+            serial_number: serial_number.as_ref().to_string(),
         }
     }
 }
 
 /// USB gadget operating system descriptor.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OsDescriptor {
     /// Vendor code.
     pub vendor_code: u8,
@@ -90,6 +98,43 @@ impl OsDescriptor {
     /// The Microsoft OS descriptor.
     pub fn microsoft() -> Self {
         Self { vendor_code: 0x02, qw_sign: "MSFT100".to_string() }
+    }
+}
+
+/// WebUSB version.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WebUsbVersion {
+    /// Version 1.0
+    #[default]
+    V10,
+    /// Other version in BCD format.
+    Other(u16),
+}
+
+impl From<WebUsbVersion> for u16 {
+    fn from(value: WebUsbVersion) -> Self {
+        match value {
+            WebUsbVersion::V10 => 0x0100,
+            WebUsbVersion::Other(ver) => ver,
+        }
+    }
+}
+
+/// USB gadget WebUSB descriptor.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WebUsb {
+    /// WebUSB specification version number.
+    pub version: WebUsbVersion,
+    /// bRequest value used for issuing WebUSB requests.
+    pub vendor_code: u8,
+    /// URL of the device's landing page.
+    pub landing_page: String,
+}
+
+impl WebUsb {
+    /// Creates a new instance.
+    pub fn new(vendor_code: u8, landing_page: impl AsRef<String>) -> Self {
+        Self { version: WebUsbVersion::default(), vendor_code, landing_page: landing_page.as_ref().to_string() }
     }
 }
 
@@ -111,12 +156,12 @@ pub struct Config {
 
 impl Config {
     /// Creates a new USB gadget configuration.
-    pub fn new(english_description: &str) -> Self {
+    pub fn new(english_description: impl AsRef<str>) -> Self {
         Self {
             max_power: (500u16 / 2) as u8,
             self_powered: false,
             remote_wakeup: false,
-            description: [(Language::EnglishUnitedStates, english_description.to_string())].into(),
+            description: [(Language::EnglishUnitedStates, english_description.as_ref().to_string())].into(),
             functions: Default::default(),
         }
     }
@@ -136,10 +181,17 @@ impl Config {
         self.functions.insert(function_handle);
     }
 
+    /// Adds a USB function (interface) to this configuration.
+    pub fn with_function(mut self, function_handle: function::Handle) -> Self {
+        self.add_function(function_handle);
+        self
+    }
+
     async fn register(
         &self, gadget_dir: &Path, idx: usize, func_dirs: &HashMap<function::Handle, PathBuf>,
     ) -> Result<()> {
         let dir = gadget_dir.join("configs").join(format!("c.{idx}"));
+        tracing::debug!("creating config at {}", dir.display());
         fs::create_dir(&dir).await?;
 
         let mut attributes = 1 << 7;
@@ -160,15 +212,44 @@ impl Config {
         }
 
         for func in &self.functions {
-            let func_dir = &func_dirs[&func];
-            symlink(func_dir, dir.join(func_dir.file_name().unwrap())).await?;
+            let func_dir = &func_dirs[func];
+            tracing::debug!("adding function {}", func_dir.display());
+            fs::symlink(func_dir, dir.join(func_dir.file_name().unwrap())).await?;
         }
 
         Ok(())
     }
 }
 
-/// An USB gadget definition.
+/// USB version.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UsbVersion {
+    /// USB 1.1
+    V11,
+    /// USB 2.0
+    #[default]
+    V20,
+    /// USB 3.0
+    V30,
+    /// USB 3.1
+    V31,
+    /// Other version in BCD format.
+    Other(u16),
+}
+
+impl From<UsbVersion> for u16 {
+    fn from(value: UsbVersion) -> Self {
+        match value {
+            UsbVersion::V11 => 0x0110,
+            UsbVersion::V20 => 0x0200,
+            UsbVersion::V30 => 0x0300,
+            UsbVersion::V31 => 0x0310,
+            UsbVersion::Other(ver) => ver,
+        }
+    }
+}
+
+/// USB gadget definition.
 ///
 /// Fields set to `None` are left at their kernel-provided default values.
 #[derive(Debug, Clone)]
@@ -181,15 +262,17 @@ pub struct Gadget {
     /// USB device strings.
     pub strings: HashMap<Language, Strings>,
     /// Maximum endpoint 0 packet size.
-    pub b_max_packet_size0: Option<u8>,
+    pub max_packet_size0: u8,
     /// Device release number in BCD format.
-    pub bcd_device: Option<u16>,
-    /// USB specification version number in BCD format.
-    pub bcd_usb: Option<u16>,
+    pub device_release: u16,
+    /// USB specification version.
+    pub usb_version: UsbVersion,
     /// Maximum speed supported by driver.
     pub max_speed: Option<Speed>,
-    /// Operating system descriptor.
+    /// OS String extension.
     pub os_descriptor: Option<OsDescriptor>,
+    /// WebUSB extension.
+    pub web_usb: Option<WebUsb>,
     /// USB device configurations.
     pub configs: Vec<Config>,
 }
@@ -201,11 +284,12 @@ impl Gadget {
             device_class,
             id,
             strings: [(Language::EnglishUnitedStates, english_strings)].into(),
-            b_max_packet_size0: None,
-            bcd_device: None,
-            bcd_usb: None,
+            max_packet_size0: 64,
+            device_release: 0x0000,
+            usb_version: UsbVersion::default(),
             max_speed: None,
             os_descriptor: None,
+            web_usb: None,
             configs: Vec::new(),
         }
     }
@@ -215,11 +299,24 @@ impl Gadget {
         self.configs.push(config);
     }
 
+    /// Adds a USB device configuration.
+    pub fn with_config(mut self, config: Config) -> Self {
+        self.add_config(config);
+        self
+    }
+
     /// Bind USB gadget to a USB device controller (UDC).
-    pub async fn bind(&self, udc: &Udc) -> Result<RegisteredGadget> {
+    ///
+    /// At least one [configuration](Config) must be added before the gadget
+    /// can be bound.
+    pub async fn bind(&self, udc: &Udc) -> Result<RegGadget> {
+        if self.configs.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidInput, "USB gadget must have at least one configuration"));
+        }
+
         let usb_gadget_dir = usb_gadget_dir().await?;
 
-        let mut gadget_idx = 0;
+        let mut gadget_idx: u16 = 0;
         let dir = loop {
             let dir = usb_gadget_dir.join(format!("usb-gadget{gadget_idx}"));
             match fs::create_dir(&dir).await {
@@ -227,8 +324,12 @@ impl Gadget {
                 Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
                 Err(err) => return Err(err),
             }
-            gadget_idx += 1;
+            gadget_idx = gadget_idx
+                .checked_add(1)
+                .ok_or_else(|| Error::new(ErrorKind::OutOfMemory, "USB gadgets exhausted"))?;
         };
+
+        tracing::debug!("creating gadget at {}", dir.display());
 
         fs::write(dir.join("bDeviceClass"), hex_u8(self.device_class.class)).await?;
         fs::write(dir.join("bDeviceSubClass"), hex_u8(self.device_class.sub_class)).await?;
@@ -237,17 +338,9 @@ impl Gadget {
         fs::write(dir.join("idVendor"), hex_u16(self.id.vendor)).await?;
         fs::write(dir.join("idProduct"), hex_u16(self.id.product)).await?;
 
-        if let Some(v) = self.b_max_packet_size0 {
-            fs::write(dir.join("bMaxPacketSize0"), hex_u8(v)).await?;
-        }
-
-        if let Some(v) = self.bcd_device {
-            fs::write(dir.join("bcdDevice"), hex_u16(v)).await?;
-        }
-
-        if let Some(v) = self.bcd_usb {
-            fs::write(dir.join("bcdUSB"), hex_u16(v)).await?;
-        }
+        fs::write(dir.join("bMaxPacketSize0"), hex_u8(self.max_packet_size0)).await?;
+        fs::write(dir.join("bcdDevice"), hex_u16(self.device_release)).await?;
+        fs::write(dir.join("bcdUSB"), hex_u16(self.usb_version.into())).await?;
 
         if let Some(v) = self.max_speed {
             fs::write(dir.join("max_speed"), v.to_string()).await?;
@@ -255,9 +348,25 @@ impl Gadget {
 
         if let Some(os_desc) = &self.os_descriptor {
             let os_desc_dir = dir.join("os_desc");
-            fs::write(os_desc_dir.join("b_vendor_code"), hex_u8(os_desc.vendor_code)).await?;
-            fs::write(os_desc_dir.join("qw_sign"), &os_desc.qw_sign).await?;
-            fs::write(os_desc_dir.join("use"), "1").await?;
+            if os_desc_dir.is_dir() {
+                fs::write(os_desc_dir.join("b_vendor_code"), hex_u8(os_desc.vendor_code)).await?;
+                fs::write(os_desc_dir.join("qw_sign"), &os_desc.qw_sign).await?;
+                fs::write(os_desc_dir.join("use"), "1").await?;
+            } else {
+                tracing::warn!("USB OS descriptor is unsupported by kernel");
+            }
+        }
+
+        if let Some(webusb) = &self.web_usb {
+            let webusb_dir = dir.join("webusb");
+            if webusb_dir.is_dir() {
+                fs::write(webusb_dir.join("bVendorCode"), hex_u8(webusb.vendor_code)).await?;
+                fs::write(webusb_dir.join("bcdVersion"), hex_u16(webusb.version.into())).await?;
+                fs::write(webusb_dir.join("landingPage"), &webusb.landing_page).await?;
+                fs::write(webusb_dir.join("use"), "1").await?;
+            } else {
+                tracing::warn!("WebUSB descriptor is unsupported by kernel");
+            }
         }
 
         for (&lang, strs) in &self.strings {
@@ -274,43 +383,66 @@ impl Gadget {
         for (func_idx, &func) in functions.iter().enumerate() {
             let func_dir = dir.join(
                 dir.join("functions")
-                    .join(format!("{}.usb-gadget{gadget_idx}-{func_idx}", func.driver().to_str().unwrap())),
+                    .join(format!("{}.usb-gadget{gadget_idx}-{func_idx}", func.get().driver().to_str().unwrap())),
             );
+            tracing::debug!("creating function at {}", func_dir.display());
             fs::create_dir(&func_dir).await?;
-            func.register(&func_dir).await?;
+
+            func.get().dir().set_dir(&func_dir);
+            func.get().register().await?;
+
             func_dirs.insert(func.clone(), func_dir);
         }
 
         for (idx, config) in self.configs.iter().enumerate() {
-            config.register(&dir, idx, &func_dirs).await?;
+            config.register(&dir, idx + 1, &func_dirs).await?;
         }
 
+        tracing::debug!("binding gadget to UDC {}", udc.name().to_string_lossy());
         fs::write(dir.join("UDC"), udc.name().as_bytes()).await?;
 
         let (keep_tx, keep_rx) = oneshot::channel();
+        let remove_funcs = func_dirs.clone();
         let remove_dir = dir.clone();
         tokio::spawn(async move {
             match keep_rx.await {
                 Ok(()) => (),
                 Err(_) => {
+                    tracing::debug!("removing gadget at {}", remove_dir.display());
+
+                    for func in remove_funcs.keys() {
+                        let _ = func.get().pre_removal().await;
+                    }
+
                     let _ = remove_at(&remove_dir).await;
+
+                    for (func, dir) in &remove_funcs {
+                        func.get().dir().reset_dir();
+                        let _ = func.get().post_removal(dir).await;
+                    }
                 }
             }
         });
 
-        Ok(RegisteredGadget { dir, keep_tx: Some(keep_tx) })
+        tracing::debug!("gadget at {} created", dir.display());
+        Ok(RegGadget { dir, keep_tx: Some(keep_tx), func_dirs })
     }
 }
 
-/// An USB gadget registered with the system.
+/// USB gadget registered with the system.
 ///
-/// If this was obtained by calling [`Gadget::bind`], the USB gadget will be unbound and removed when this is dropped.
-pub struct RegisteredGadget {
+/// If this was obtained by calling [`Gadget::bind`], the USB gadget will be
+/// unbound and removed when this is dropped.
+///
+/// Call [`registered`] to obtain all gadgets registered on the system.
+#[must_use = "The USB gadget is removed when RegGadget is dropped."]
+pub struct RegGadget {
     dir: PathBuf,
     keep_tx: Option<oneshot::Sender<()>>,
+    func_dirs: HashMap<Handle, PathBuf>,
 }
 
-impl fmt::Debug for RegisteredGadget {
+impl fmt::Debug for RegGadget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("RegisteredGadget")
             .field("name", &self.name())
@@ -319,7 +451,7 @@ impl fmt::Debug for RegisteredGadget {
     }
 }
 
-impl RegisteredGadget {
+impl RegGadget {
     /// Name of this USB gadget in configfs.
     pub fn name(&self) -> &OsStr {
         self.dir.file_name().unwrap()
@@ -335,7 +467,7 @@ impl RegisteredGadget {
         self.keep_tx.is_some()
     }
 
-    /// Returns the name of the USB device controller (UDC) this gadget is bound to.
+    /// The name of the USB device controller (UDC) this gadget is bound to.
     pub async fn udc(&self) -> Result<Option<OsString>> {
         let data = OsString::from_vec(fs::read(self.dir.join("UDC")).await?);
         let data = trim_os_str(&data);
@@ -343,6 +475,24 @@ impl RegisteredGadget {
             Ok(None)
         } else {
             Ok(Some(data.to_os_string()))
+        }
+    }
+
+    /// Binds the gadget to the specified USB device controller (UDC).
+    ///
+    /// If `udc` is `None`, the gadget is unbound from any UDC.
+    pub async fn bind(&self, udc: Option<&Udc>) -> Result<()> {
+        tracing::debug!("binding gadget {:?} to {:?}", self, &udc);
+
+        let name = match udc {
+            Some(udc) => udc.name().to_os_string(),
+            None => "\n".into(),
+        };
+
+        match fs::write(self.dir.join("UDC"), name.as_bytes()).await {
+            Ok(()) => Ok(()),
+            Err(err) if udc.is_none() && err.raw_os_error() == Some(Errno::ENODEV as i32) => Ok(()),
+            Err(err) => Err(err),
         }
     }
 
@@ -355,12 +505,26 @@ impl RegisteredGadget {
 
     /// Unbind from the UDC and remove the USB gadget.
     pub async fn remove(mut self) -> Result<()> {
+        for func in self.func_dirs.keys() {
+            func.get().pre_removal().await?;
+        }
+
+        remove_at(&self.dir).await?;
+
+        for func in self.func_dirs.keys() {
+            func.get().dir().reset_dir();
+        }
+
+        for (func, dir) in &self.func_dirs {
+            func.get().post_removal(dir).await?;
+        }
+
         self.detach();
-        remove_at(&self.dir).await
+        Ok(())
     }
 }
 
-impl Drop for RegisteredGadget {
+impl Drop for RegGadget {
     fn drop(&mut self) {
         // empty
     }
@@ -368,7 +532,11 @@ impl Drop for RegisteredGadget {
 
 /// Remove USB gadget at specified configfs gadget directory.
 async fn remove_at(dir: &Path) -> Result<()> {
-    let _ = fs::write(dir.join("UDC"), "").await;
+    tracing::debug!("removing gadget at {}", dir.display());
+
+    init_remove_handlers();
+
+    let _ = fs::write(dir.join("UDC"), "\n").await;
 
     let mut configs = fs::read_dir(dir.join("configs")).await?;
     while let Some(config_dir) = configs.next_entry().await? {
@@ -399,7 +567,7 @@ async fn remove_at(dir: &Path) -> Result<()> {
             continue;
         }
 
-        function::call_remove_handler(&func_dir.path()).await?;
+        call_remove_handler(&func_dir.path()).await?;
 
         fs::remove_dir(func_dir.path()).await?;
     }
@@ -413,13 +581,15 @@ async fn remove_at(dir: &Path) -> Result<()> {
 
     fs::remove_dir(dir).await?;
 
+    tracing::debug!("removed gadget at {}", dir.display());
     Ok(())
 }
 
 /// The path to the USB gadget configuration directory within configfs.
 async fn usb_gadget_dir() -> Result<PathBuf> {
-    let config_fs = configfs_dir()?;
-    let usb_gadget_dir = config_fs.join("usb_gadget");
+    let _ = request_module("libcomposite").await;
+
+    let usb_gadget_dir = configfs_dir()?.join("usb_gadget");
     if usb_gadget_dir.is_dir() {
         Ok(usb_gadget_dir)
     } else {
@@ -427,18 +597,18 @@ async fn usb_gadget_dir() -> Result<PathBuf> {
     }
 }
 
-/// Gets the list of all USB gadgets defined on the system.
+/// Get all USB gadgets registered on the system.
 ///
-/// This returns all USB gadgets, including gadgets not created by the running program or by
-/// other means than using this library.
-pub async fn enumerate() -> Result<Vec<RegisteredGadget>> {
+/// This returns all USB gadgets, including gadgets not created by the running program or
+/// registered by other means than using this library.
+pub async fn registered() -> Result<Vec<RegGadget>> {
     let usb_gadget_dir = usb_gadget_dir().await?;
 
     let mut gadgets = Vec::new();
     let mut gadget_dirs = fs::read_dir(usb_gadget_dir).await?;
     while let Some(gadget_dir) = gadget_dirs.next_entry().await? {
         if gadget_dir.metadata().await?.is_dir() {
-            gadgets.push(RegisteredGadget { dir: gadget_dir.path(), keep_tx: None });
+            gadgets.push(RegGadget { dir: gadget_dir.path(), keep_tx: None, func_dirs: HashMap::new() });
         }
     }
 
@@ -447,13 +617,29 @@ pub async fn enumerate() -> Result<Vec<RegisteredGadget>> {
 
 /// Remove all USB gadgets defined on the system.
 ///
-/// This removes all USB gadgets, including gadgets not created by the running program or by
-/// other means than using this library.
+/// This removes all USB gadgets, including gadgets not created by the running program or
+/// registered by other means than using this library.
 pub async fn remove_all() -> Result<()> {
     let mut res = Ok(());
 
-    for gadget in enumerate().await? {
+    for gadget in registered().await? {
         if let Err(err) = gadget.remove().await {
+            res = Err(err);
+        }
+    }
+
+    res
+}
+
+/// Unbind all USB gadgets defined on the system.
+///
+/// This unbinds all USB gadgets, including gadgets not created by the running program or
+/// registered by other means than using this library.
+pub async fn unbind_all() -> Result<()> {
+    let mut res = Ok(());
+
+    for gadget in registered().await? {
+        if let Err(err) = gadget.bind(None).await {
             res = Err(err);
         }
     }

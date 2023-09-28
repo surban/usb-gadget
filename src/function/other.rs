@@ -1,3 +1,5 @@
+//! Other USB function.
+
 use async_trait::async_trait;
 use std::{
     collections::HashMap,
@@ -6,11 +8,10 @@ use std::{
     os::unix::prelude::OsStrExt,
     path::{Component, Path, PathBuf},
 };
-use tokio::fs;
 
-use super::{Function, Handle};
+use super::{util::FunctionDir, Function, Handle};
 
-/// Other USB function implemented by a kernel function driver.
+/// Builder for other USB function implemented by a kernel function driver.
 #[derive(Debug, Clone)]
 pub struct OtherBuilder {
     /// Function driver name.
@@ -20,45 +21,82 @@ pub struct OtherBuilder {
 }
 
 impl OtherBuilder {
-    /// Create a new other function implemented by the specified kernel function driver.
+    /// Build the USB function.
     ///
-    /// Driver name `xxx` corresponds to kernel module `usb_f_xxx.ko`.
-    pub fn new(driver: impl AsRef<OsStr>) -> Result<Self> {
-        let driver = driver.as_ref();
-        if driver.as_bytes().contains(&b'.') || driver.as_bytes().contains(&b'/') || !driver.is_ascii() {
-            return Err(Error::new(ErrorKind::InvalidInput, "invalid driver name"));
-        }
-
-        Ok(Self { driver: driver.to_os_string(), properties: HashMap::new() })
+    /// The returned handle must be added to a USB gadget configuration.
+    pub fn build(self) -> (Other, Handle) {
+        let dir = FunctionDir::new();
+        (Other { dir: dir.clone() }, Handle::new(OtherFunction { builder: self, dir }))
     }
 
     /// Set a property value.
     pub fn set(&mut self, name: impl AsRef<Path>, value: impl AsRef<[u8]>) -> Result<()> {
         let path = name.as_ref().to_path_buf();
         if !path.components().all(|c| matches!(c, Component::Normal(_))) {
-            return Err(Error::new(ErrorKind::InvalidInput, "property path must only contain normal components"));
+            return Err(Error::new(ErrorKind::InvalidInput, "property path must be relative"));
         }
 
         self.properties.insert(path, value.as_ref().to_vec());
         Ok(())
     }
+}
 
-    pub fn build(self) -> Handle {
-        Handle::new(self)
-    }
+#[derive(Debug)]
+struct OtherFunction {
+    builder: OtherBuilder,
+    dir: FunctionDir,
 }
 
 #[async_trait]
-impl Function for OtherBuilder {
+impl Function for OtherFunction {
     fn driver(&self) -> OsString {
-        self.driver.clone()
+        self.builder.driver.clone()
     }
 
-    async fn register(&self, dir: &Path) -> Result<()> {
-        for (prop, val) in &self.properties {
-            fs::write(dir.join(prop), val).await?;
+    fn dir(&self) -> FunctionDir {
+        self.dir.clone()
+    }
+
+    async fn register(&self) -> Result<()> {
+        for (prop, val) in &self.builder.properties {
+            self.dir.write(prop, val).await?;
         }
 
         Ok(())
+    }
+}
+
+/// Other USB function implemented by a kernel function driver.
+///
+/// Driver name `xxx` corresponds to kernel module `usb_f_xxx.ko`.
+#[derive(Debug)]
+pub struct Other {
+    dir: FunctionDir,
+}
+
+impl Other {
+    /// Create a new other function implemented by the specified kernel function driver.
+    pub fn new(driver: impl AsRef<OsStr>) -> Result<(Other, Handle)> {
+        Ok(Self::builder(driver)?.build())
+    }
+
+    /// Build a new other function implemented by the specified kernel function driver.
+    pub fn builder(driver: impl AsRef<OsStr>) -> Result<OtherBuilder> {
+        let driver = driver.as_ref();
+        if driver.as_bytes().contains(&b'.') || driver.as_bytes().contains(&b'/') || !driver.is_ascii() {
+            return Err(Error::new(ErrorKind::InvalidInput, "invalid driver name"));
+        }
+
+        Ok(OtherBuilder { driver: driver.to_os_string(), properties: HashMap::new() })
+    }
+
+    /// Path of this USB function in configfs.
+    pub fn path(&self) -> Result<PathBuf> {
+        self.dir.dir()
+    }
+
+    /// Get a property value.
+    pub async fn get(&self, name: impl AsRef<Path>) -> Result<Vec<u8>> {
+        self.dir.read(name).await
     }
 }
