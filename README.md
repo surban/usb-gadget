@@ -6,7 +6,7 @@ usb-gadget
 [![Apache 2.0 license](https://img.shields.io/crates/l/usb-gadget)](https://github.com/surban/usb-gadget/blob/master/LICENSE)
 
 This library allows implementation of USB peripherals, so called **USB gadgets**,
-on Linux devices.
+on Linux devices that have a USB device controller (UDC).
 Both, pre-defined USB functions and fully custom implementations of the USB
 interface are supported.
 
@@ -24,9 +24,16 @@ The following pre-defined USB functions, implemented by kernel drivers, are avai
 * human interface device (HID)
 * mass-storage device (MSD)
 
-In addition fully custom USB functions can be implemented in user-mode, async Rust code.
+In addition fully custom USB functions can be implemented in user-mode Rust code.
 
 Support for OS-specific descriptors and WebUSB is also provided.
+
+Features
+--------
+
+This crate provides the following optional features:
+
+* `tokio`: enables async support for custom USB functions on top of the Tokio runtime.
 
 Requirements
 ------------

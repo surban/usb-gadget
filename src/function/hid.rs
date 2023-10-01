@@ -1,6 +1,7 @@
 //! Human interface device (HID) function.
+//!
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_HID` must be enabled.
 
-use async_trait::async_trait;
 use std::{
     ffi::OsString,
     io::{Error, ErrorKind, Result},
@@ -41,7 +42,6 @@ struct HidFunction {
     dir: FunctionDir,
 }
 
-#[async_trait]
 impl Function for HidFunction {
     fn driver(&self) -> OsString {
         "hid".into()
@@ -51,20 +51,18 @@ impl Function for HidFunction {
         self.dir.clone()
     }
 
-    async fn register(&self) -> Result<()> {
-        self.dir.write("subclass", self.builder.sub_class.to_string()).await?;
-        self.dir.write("protocol", self.builder.protocol.to_string()).await?;
-        self.dir.write("report_desc", &self.builder.report_desc).await?;
-        self.dir.write("report_length", self.builder.report_len.to_string()).await?;
-        self.dir.write("no_out_endpoint", if self.builder.no_out_endpoint { "1" } else { "0" }).await?;
+    fn register(&self) -> Result<()> {
+        self.dir.write("subclass", self.builder.sub_class.to_string())?;
+        self.dir.write("protocol", self.builder.protocol.to_string())?;
+        self.dir.write("report_desc", &self.builder.report_desc)?;
+        self.dir.write("report_length", self.builder.report_len.to_string())?;
+        self.dir.write("no_out_endpoint", if self.builder.no_out_endpoint { "1" } else { "0" })?;
 
         Ok(())
     }
 }
 
 /// USB human interface device (HID) function.
-///
-/// The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_HID` must be enabled.
 #[derive(Debug)]
 pub struct Hid {
     dir: FunctionDir,
@@ -82,8 +80,8 @@ impl Hid {
     }
 
     /// Device major and minor numbers.
-    pub async fn device(&self) -> Result<(u8, u8)> {
-        let dev = self.dir.read_string("dev").await?;
+    pub fn device(&self) -> Result<(u8, u8)> {
+        let dev = self.dir.read_string("dev")?;
         let Some((major, minor)) = dev.split_once(':') else {
             return Err(Error::new(ErrorKind::InvalidData, "invalid device number format"));
         };

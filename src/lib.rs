@@ -1,5 +1,5 @@
 //! This library allows implementation of USB peripherals, so called **USB gadgets**,
-//! on Linux devices.
+//! on Linux devices that have a USB device controller (UDC).
 //! Both, pre-defined USB functions and fully custom implementations of the USB
 //! interface are supported.
 //!
@@ -21,6 +21,7 @@
 //!
 
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(not(target_os = "linux"))]
 compile_error!("usb_gadget only supports Linux");
@@ -31,8 +32,8 @@ use std::{
     io::{Error, ErrorKind, Result},
     os::unix::prelude::OsStrExt,
     path::PathBuf,
+    process::Command,
 };
-use tokio::process::Command;
 
 pub mod function;
 
@@ -110,12 +111,12 @@ fn trim_os_str(value: &OsStr) -> &OsStr {
 }
 
 /// Request a kernel module to be loaded.
-async fn request_module(name: impl AsRef<OsStr>) -> Result<()> {
-    let mut res = Command::new("modprobe").arg("-q").arg(name.as_ref()).output().await;
+fn request_module(name: impl AsRef<OsStr>) -> Result<()> {
+    let mut res = Command::new("modprobe").arg("-q").arg(name.as_ref()).output();
 
     match res {
         Err(err) if err.kind() == ErrorKind::NotFound => {
-            res = Command::new("/sbin/modprobe").arg("-q").arg(name.as_ref()).output().await;
+            res = Command::new("/sbin/modprobe").arg("-q").arg(name.as_ref()).output();
         }
         _ => (),
     }

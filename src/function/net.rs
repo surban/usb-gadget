@@ -1,6 +1,5 @@
 //! Net functions.
 
-use async_trait::async_trait;
 use macaddr::MacAddr6;
 use std::{
     ffi::{OsStr, OsString},
@@ -8,9 +7,8 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{gadget::Class, hex_u8};
-
 use super::{util::FunctionDir, Function, Handle};
+use crate::{gadget::Class, hex_u8};
 
 /// Class of USB network device.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,7 +79,6 @@ struct NetFunction {
     dir: FunctionDir,
 }
 
-#[async_trait]
 impl Function for NetFunction {
     fn driver(&self) -> OsString {
         self.builder.net_class.driver().to_os_string()
@@ -91,23 +88,23 @@ impl Function for NetFunction {
         self.dir.clone()
     }
 
-    async fn register(&self) -> Result<()> {
+    fn register(&self) -> Result<()> {
         if let Some(dev_addr) = self.builder.dev_addr {
-            self.dir.write("dev_addr", dev_addr.to_string()).await?;
+            self.dir.write("dev_addr", dev_addr.to_string())?;
         }
 
         if let Some(host_addr) = self.builder.host_addr {
-            self.dir.write("host_addr", host_addr.to_string()).await?;
+            self.dir.write("host_addr", host_addr.to_string())?;
         }
 
         if let Some(qmult) = self.builder.qmult {
-            self.dir.write("qmult", qmult.to_string()).await?;
+            self.dir.write("qmult", qmult.to_string())?;
         }
 
         if let (NetClass::Rndis, Some(class)) = (self.builder.net_class, self.builder.interface_class) {
-            self.dir.write("class", hex_u8(class.class)).await?;
-            self.dir.write("subclass", hex_u8(class.sub_class)).await?;
-            self.dir.write("protocol", hex_u8(class.protocol)).await?;
+            self.dir.write("class", hex_u8(class.class))?;
+            self.dir.write("subclass", hex_u8(class.sub_class))?;
+            self.dir.write("protocol", hex_u8(class.protocol))?;
         }
 
         Ok(())
@@ -137,17 +134,17 @@ impl Net {
     }
 
     /// MAC address of device's end of this Ethernet over USB link.
-    pub async fn dev_addr(&self) -> Result<MacAddr6> {
-        self.dir.read_string("dev_addr").await?.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))
+    pub fn dev_addr(&self) -> Result<MacAddr6> {
+        self.dir.read_string("dev_addr")?.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))
     }
 
     /// MAC address of host's end of this Ethernet over USB link.
-    pub async fn host_addr(&self) -> Result<MacAddr6> {
-        self.dir.read_string("host_addr").await?.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))
+    pub fn host_addr(&self) -> Result<MacAddr6> {
+        self.dir.read_string("host_addr")?.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))
     }
 
     /// Network device interface name associated with this function instance.
-    pub async fn ifname(&self) -> Result<OsString> {
-        self.dir.read_os_string("ifname").await
+    pub fn ifname(&self) -> Result<OsString> {
+        self.dir.read_os_string("ifname")
     }
 }

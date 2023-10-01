@@ -1,6 +1,5 @@
 //! Other USB function.
 
-use async_trait::async_trait;
 use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
@@ -47,7 +46,6 @@ struct OtherFunction {
     dir: FunctionDir,
 }
 
-#[async_trait]
 impl Function for OtherFunction {
     fn driver(&self) -> OsString {
         self.builder.driver.clone()
@@ -57,9 +55,9 @@ impl Function for OtherFunction {
         self.dir.clone()
     }
 
-    async fn register(&self) -> Result<()> {
+    fn register(&self) -> Result<()> {
         for (prop, val) in &self.builder.properties {
-            self.dir.write(prop, val).await?;
+            self.dir.write(prop, val)?;
         }
 
         Ok(())
@@ -96,7 +94,7 @@ impl Other {
     }
 
     /// Get a property value.
-    pub async fn get(&self, name: impl AsRef<Path>) -> Result<Vec<u8>> {
-        self.dir.read(name).await
+    pub fn get(&self, name: impl AsRef<Path>) -> Result<Vec<u8>> {
+        self.dir.read(name)
     }
 }

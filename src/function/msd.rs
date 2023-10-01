@@ -1,13 +1,14 @@
 //! Mass Storage Device (MSD) function.
+//!
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_MASS_STORAGE` must be enabled.
 
-use async_trait::async_trait;
 use std::{
     ffi::{OsStr, OsString},
+    fs,
     io::{Error, ErrorKind, Result},
     os::unix::prelude::OsStrExt,
     path::{Path, PathBuf},
 };
-use tokio::fs;
 
 use super::{util::FunctionDir, Function, Handle};
 
@@ -18,7 +19,7 @@ pub(crate) fn driver() -> &'static OsStr {
 /// Logical unit (LUN) of mass storage device (MSD).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct MsdLun {
+pub struct Lun {
     /// Flag specifying access to the LUN shall be read-only.
     ///
     /// This is implied if CD-ROM emulation is enabled as well as
@@ -38,7 +39,7 @@ pub struct MsdLun {
     pub inquiry_string: String,
 }
 
-impl MsdLun {
+impl Lun {
     /// Create a new LUN backed by the specified file.
     pub fn new(file: impl AsRef<Path>) -> Result<Self> {
         let mut this = Self::default();
@@ -72,7 +73,7 @@ impl MsdLun {
     }
 }
 
-impl Default for MsdLun {
+impl Default for Lun {
     fn default() -> Self {
         Self {
             read_only: false,
@@ -94,7 +95,7 @@ pub struct MsdBuilder {
     /// Disabled on some USB devices known not to work correctly.
     pub stall: Option<bool>,
     /// Logical units.
-    pub luns: Vec<MsdLun>,
+    pub luns: Vec<Lun>,
 }
 
 impl MsdBuilder {
@@ -107,12 +108,12 @@ impl MsdBuilder {
     }
 
     /// Adds a LUN.
-    pub fn add_lun(&mut self, lun: MsdLun) {
+    pub fn add_lun(&mut self, lun: Lun) {
         self.luns.push(lun);
     }
 
     /// Adds a LUN.
-    pub fn with_lun(mut self, lun: MsdLun) -> Self {
+    pub fn with_lun(mut self, lun: Lun) -> Self {
         self.add_lun(lun);
         self
     }
@@ -124,7 +125,6 @@ struct MsdFunction {
     dir: FunctionDir,
 }
 
-#[async_trait]
 impl Function for MsdFunction {
     fn driver(&self) -> OsString {
         driver().into()
@@ -134,29 +134,29 @@ impl Function for MsdFunction {
         self.dir.clone()
     }
 
-    async fn register(&self) -> Result<()> {
+    fn register(&self) -> Result<()> {
         if self.builder.luns.is_empty() {
             return Err(Error::new(ErrorKind::InvalidInput, "at least one LUN must exist"));
         }
 
         if let Some(stall) = self.builder.stall {
-            self.dir.write("stall", if stall { "1" } else { "0" }).await?;
+            self.dir.write("stall", if stall { "1" } else { "0" })?;
         }
 
         for (idx, lun) in self.builder.luns.iter().enumerate() {
-            let lun_dir_name = MsdLun::dir_name(idx);
+            let lun_dir_name = Lun::dir_name(idx);
 
             if idx != 0 {
-                self.dir.create_dir(&lun_dir_name).await?;
+                self.dir.create_dir(&lun_dir_name)?;
             }
 
-            self.dir.write(format!("{lun_dir_name}/ro"), if lun.read_only { "1" } else { "0" }).await?;
-            self.dir.write(format!("{lun_dir_name}/cdrom"), if lun.cdrom { "1" } else { "0" }).await?;
-            self.dir.write(format!("{lun_dir_name}/nofua"), if lun.no_fua { "1" } else { "0" }).await?;
-            self.dir.write(format!("{lun_dir_name}/removable"), if lun.removable { "1" } else { "0" }).await?;
-            self.dir.write(format!("{lun_dir_name}/inquiry_string"), &lun.inquiry_string).await?;
+            self.dir.write(format!("{lun_dir_name}/ro"), if lun.read_only { "1" } else { "0" })?;
+            self.dir.write(format!("{lun_dir_name}/cdrom"), if lun.cdrom { "1" } else { "0" })?;
+            self.dir.write(format!("{lun_dir_name}/nofua"), if lun.no_fua { "1" } else { "0" })?;
+            self.dir.write(format!("{lun_dir_name}/removable"), if lun.removable { "1" } else { "0" })?;
+            self.dir.write(format!("{lun_dir_name}/inquiry_string"), &lun.inquiry_string)?;
             if let Some(file) = &lun.file {
-                self.dir.write(format!("{lun_dir_name}/file"), file.as_os_str().as_bytes()).await?;
+                self.dir.write(format!("{lun_dir_name}/file"), file.as_os_str().as_bytes())?;
             }
         }
 
@@ -165,8 +165,6 @@ impl Function for MsdFunction {
 }
 
 /// USB Mass Storage Device (MSD) function.
-///
-/// The Linux kernel configuration option `CONFIG_USB_CONFIGFS_MASS_STORAGE` must be enabled.
 #[derive(Debug)]
 pub struct Msd {
     dir: FunctionDir,
@@ -176,7 +174,7 @@ impl Msd {
     /// Creates a new USB Mass Storage Device (MSD) with the specified backing file.
     pub fn new(file: impl AsRef<Path>) -> Result<(Msd, Handle)> {
         let mut builder = Self::builder();
-        builder.luns.push(MsdLun::new(file)?);
+        builder.luns.push(Lun::new(file)?);
         Ok(builder.build())
     }
 
@@ -191,14 +189,14 @@ impl Msd {
     }
 
     /// Forcibly detach the backing file from the LUN, regardless of whether the host has allowed it.
-    pub async fn force_eject(&self, lun: usize) -> Result<()> {
-        let lun_dir_name = MsdLun::dir_name(lun);
-        self.dir.write(format!("{lun_dir_name}/forced_eject"), "1").await
+    pub fn force_eject(&self, lun: usize) -> Result<()> {
+        let lun_dir_name = Lun::dir_name(lun);
+        self.dir.write(format!("{lun_dir_name}/forced_eject"), "1")
     }
 
     /// Set the path to the backing file for the LUN.
-    pub async fn set_file<P: AsRef<Path>>(&self, lun: usize, file: Option<P>) -> Result<()> {
-        let lun_dir_name = MsdLun::dir_name(lun);
+    pub fn set_file<P: AsRef<Path>>(&self, lun: usize, file: Option<P>) -> Result<()> {
+        let lun_dir_name = Lun::dir_name(lun);
         let file = match file {
             Some(file) => {
                 let file = file.as_ref();
@@ -209,18 +207,18 @@ impl Msd {
             }
             None => Vec::new(),
         };
-        self.dir.write(format!("{lun_dir_name}/file"), file).await
+        self.dir.write(format!("{lun_dir_name}/file"), file)
     }
 }
 
-pub(crate) async fn remove_handler(dir: PathBuf) -> Result<()> {
-    let mut entries = fs::read_dir(dir).await?;
-    while let Some(entry) = entries.next_entry().await? {
-        if entry.file_type().await?.is_dir()
+pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let Ok(entry) = entry else { continue };
+        if entry.file_type()?.is_dir()
             && entry.file_name().as_bytes().contains(&b'.')
             && entry.file_name() != "lun.0"
         {
-            fs::remove_dir(entry.path()).await?;
+            fs::remove_dir(entry.path())?;
         }
     }
 

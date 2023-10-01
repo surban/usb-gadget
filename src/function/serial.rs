@@ -1,6 +1,5 @@
 //! Serial functions.
 
-use async_trait::async_trait;
 use std::{
     ffi::{OsStr, OsString},
     io::{Error, ErrorKind, Result},
@@ -57,7 +56,6 @@ struct SerialFunction {
     dir: FunctionDir,
 }
 
-#[async_trait]
 impl Function for SerialFunction {
     fn driver(&self) -> OsString {
         self.builder.serial_class.driver().to_os_string()
@@ -67,10 +65,10 @@ impl Function for SerialFunction {
         self.dir.clone()
     }
 
-    async fn register(&self) -> Result<()> {
+    fn register(&self) -> Result<()> {
         if let Some(console) = self.builder.console {
             // Console support is optional.
-            let _ = self.dir.write("console", if console { "1" } else { "0" }).await;
+            let _ = self.dir.write("console", if console { "1" } else { "0" });
         }
 
         Ok(())
@@ -100,13 +98,9 @@ impl Serial {
     }
 
     /// Path to TTY device.
-    pub async fn tty(&self) -> Result<PathBuf> {
-        let port_num: u32 = self
-            .dir
-            .read_string("port_num")
-            .await?
-            .parse()
-            .map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
+    pub fn tty(&self) -> Result<PathBuf> {
+        let port_num: u32 =
+            self.dir.read_string("port_num")?.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
         Ok(format!("/dev/ttyGS{port_num}").into())
     }
 }

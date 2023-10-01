@@ -2,5 +2,23 @@
     "rust-analyzer.showUnlinkedFileNotification": false,
     "files.exclude": {
         "target/": true,
-    }
+    },
+    "cSpell.words": [
+        "CONFIGFS",
+        "eventfd",
+        "functionfs",
+        "Gbit",
+        "iocb",
+        "Mbit",
+        "MSRV",
+        "RNDIS"
+    ],
+    "cSpell.languageSettings": [
+        {
+            "languageId": "rust",
+            "includeRegExpList": [
+                "CStyleComment"
+            ]
+        }
+    ]
 }

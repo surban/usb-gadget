@@ -1,24 +1,18 @@
 //! Utils for implementing USB gadget functions.
 
-use async_trait::async_trait;
-use futures_util::FutureExt;
 use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
-    fmt,
-    future::Future,
+    fmt, fs,
     io::{Error, ErrorKind, Result},
     os::unix::prelude::{OsStrExt, OsStringExt},
     path::{Component, Path, PathBuf},
-    pin::Pin,
     sync::{Arc, Mutex, MutexGuard, Once, OnceLock},
 };
-use tokio::fs;
 
 use crate::{function::register_remove_handlers, trim_os_str};
 
 /// USB gadget function.
-#[async_trait]
 pub trait Function: fmt::Debug + Send + Sync + 'static {
     /// Name of the function driver.
     fn driver(&self) -> OsString;
@@ -27,15 +21,15 @@ pub trait Function: fmt::Debug + Send + Sync + 'static {
     fn dir(&self) -> FunctionDir;
 
     /// Register the function in configfs at the specified path.
-    async fn register(&self) -> Result<()>;
+    fn register(&self) -> Result<()>;
 
     /// Notifies the function that the USB gadget is about to be removed.
-    async fn pre_removal(&self) -> Result<()> {
+    fn pre_removal(&self) -> Result<()> {
         Ok(())
     }
 
     /// Notifies the function that the USB gadget has been removed.
-    async fn post_removal(&self, _dir: &Path) -> Result<()> {
+    fn post_removal(&self, _dir: &Path) -> Result<()> {
         Ok(())
     }
 }
@@ -106,37 +100,37 @@ impl FunctionDir {
     }
 
     /// Create a subdirectory.
-    pub async fn create_dir(&self, name: impl AsRef<Path>) -> Result<()> {
+    pub fn create_dir(&self, name: impl AsRef<Path>) -> Result<()> {
         let path = self.property_path(name)?;
-        tracing::debug!("creating directory {}", path.display());
-        fs::create_dir(path).await
+        log::debug!("creating directory {}", path.display());
+        fs::create_dir(path)
     }
 
     /// Remove a subdirectory.
-    pub async fn remove_dir(&self, name: impl AsRef<Path>) -> Result<()> {
+    pub fn remove_dir(&self, name: impl AsRef<Path>) -> Result<()> {
         let path = self.property_path(name)?;
-        tracing::debug!("removing directory {}", path.display());
-        fs::remove_dir(path).await
+        log::debug!("removing directory {}", path.display());
+        fs::remove_dir(path)
     }
 
     /// Read a binary property.
-    pub async fn read(&self, name: impl AsRef<Path>) -> Result<Vec<u8>> {
+    pub fn read(&self, name: impl AsRef<Path>) -> Result<Vec<u8>> {
         let path = self.property_path(name)?;
-        let res = fs::read(&path).await;
+        let res = fs::read(&path);
 
         match &res {
             Ok(value) => {
-                tracing::debug!("read property {} with value {}", path.display(), String::from_utf8_lossy(value))
+                log::debug!("read property {} with value {}", path.display(), String::from_utf8_lossy(value))
             }
-            Err(err) => tracing::debug!("reading property {} failed: {}", path.display(), err),
+            Err(err) => log::debug!("reading property {} failed: {}", path.display(), err),
         }
 
         res
     }
 
     /// Read and trim a string property.
-    pub async fn read_string(&self, name: impl AsRef<Path>) -> Result<String> {
-        let mut data = self.read(name).await?;
+    pub fn read_string(&self, name: impl AsRef<Path>) -> Result<String> {
+        let mut data = self.read(name)?;
         while data.last() == Some(&b'\0') || data.last() == Some(&b' ') || data.last() == Some(&b'\n') {
             data.truncate(data.len() - 1);
         }
@@ -145,22 +139,22 @@ impl FunctionDir {
     }
 
     /// Read an trim an OS string property.
-    pub async fn read_os_string(&self, name: impl AsRef<Path>) -> Result<OsString> {
-        Ok(trim_os_str(&OsString::from_vec(self.read(name).await?)).to_os_string())
+    pub fn read_os_string(&self, name: impl AsRef<Path>) -> Result<OsString> {
+        Ok(trim_os_str(&OsString::from_vec(self.read(name)?)).to_os_string())
     }
 
     /// Write a property.
-    pub async fn write(&self, name: impl AsRef<Path>, value: impl AsRef<[u8]>) -> Result<()> {
+    pub fn write(&self, name: impl AsRef<Path>, value: impl AsRef<[u8]>) -> Result<()> {
         let path = self.property_path(name)?;
         let value = value.as_ref();
-        tracing::debug!("setting property {} to {}", path.display(), String::from_utf8_lossy(value));
-        fs::write(path, value).await
+        log::debug!("setting property {} to {}", path.display(), String::from_utf8_lossy(value));
+        fs::write(path, value)
     }
 }
 
 /// Split configfs function directory path into driver name and instance name.
 pub fn split_function_dir(function_dir: &Path) -> Option<(&OsStr, &OsStr)> {
-    let Some(name) = function_dir.file_name() else { return None };
+    let name = function_dir.file_name()?;
     let name = name.as_bytes();
 
     let Some(dot) = name.iter().enumerate().find_map(|(i, c)| if *c == b'.' { Some(i) } else { None }) else {
@@ -173,7 +167,7 @@ pub fn split_function_dir(function_dir: &Path) -> Option<(&OsStr, &OsStr)> {
 }
 
 /// Handler function for removing function instance.
-type RemoveHandler = Arc<dyn Fn(PathBuf) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+type RemoveHandler = Arc<dyn Fn(PathBuf) -> Result<()> + Send + Sync>;
 
 /// Registered handlers for removing function instances.
 static REMOVE_HANDLERS: OnceLock<Mutex<HashMap<OsString, RemoveHandler>>> = OnceLock::new();
@@ -193,23 +187,177 @@ pub(crate) fn init_remove_handlers() {
 }
 
 /// Register a function remove handler for the specified function driver.
-pub fn register_remove_handler<Fut>(
-    driver: impl AsRef<OsStr>, handler: impl Fn(PathBuf) -> Fut + Send + Sync + 'static,
-) where
-    Fut: Future<Output = Result<()>> + Send + Sync + 'static,
-{
-    remove_handlers().insert(driver.as_ref().to_os_string(), Arc::new(move |dir| handler(dir).boxed()));
+pub fn register_remove_handler(
+    driver: impl AsRef<OsStr>, handler: impl Fn(PathBuf) -> Result<()> + Send + Sync + 'static,
+) {
+    remove_handlers().insert(driver.as_ref().to_os_string(), Arc::new(handler));
 }
 
 /// Calls the remove handler for the function directory, if any is registered.
-pub(crate) async fn call_remove_handler(function_dir: &Path) -> Result<()> {
+pub(crate) fn call_remove_handler(function_dir: &Path) -> Result<()> {
     let Some((driver, _)) = split_function_dir(function_dir) else {
         return Err(Error::new(ErrorKind::InvalidInput, "invalid function directory"));
     };
 
     let handler_opt = remove_handlers().get(driver).cloned();
     match handler_opt {
-        Some(handler) => handler(function_dir.to_path_buf()).await,
+        Some(handler) => handler(function_dir.to_path_buf()),
         None => Ok(()),
+    }
+}
+
+/// Value channel.
+pub(crate) mod value {
+    use std::{
+        error::Error,
+        fmt,
+        fmt::Display,
+        io, mem,
+        sync::{mpsc, Mutex},
+    };
+
+    /// Value was already sent.
+    #[derive(Debug, Clone)]
+    pub struct AlreadySentError;
+
+    impl Display for AlreadySentError {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "value already sent")
+        }
+    }
+
+    impl Error for AlreadySentError {}
+
+    /// Sender of value channel.
+    #[derive(Debug)]
+    pub struct Sender<T>(Mutex<Option<mpsc::Sender<T>>>);
+
+    impl<T> Sender<T> {
+        /// Sends a value.
+        ///
+        /// This can only be called once.
+        pub fn send(&self, value: T) -> Result<(), AlreadySentError> {
+            match self.0.lock().unwrap().take() {
+                Some(tx) => {
+                    let _ = tx.send(value);
+                    Ok(())
+                }
+                None => Err(AlreadySentError),
+            }
+        }
+    }
+
+    /// Value channel receive error.
+    #[derive(Debug, Clone)]
+    pub enum RecvError {
+        /// Value was not yet sent.
+        Empty,
+        /// Sender was dropped without sending a value.
+        Disconnected,
+        /// Value was taken.
+        Taken,
+    }
+
+    impl Display for RecvError {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            match self {
+                RecvError::Empty => write!(f, "value was not yet sent"),
+                RecvError::Disconnected => write!(f, "no value was sent"),
+                RecvError::Taken => write!(f, "value was taken"),
+            }
+        }
+    }
+
+    impl Error for RecvError {}
+
+    impl From<mpsc::RecvError> for RecvError {
+        fn from(_err: mpsc::RecvError) -> Self {
+            Self::Disconnected
+        }
+    }
+
+    impl From<mpsc::TryRecvError> for RecvError {
+        fn from(err: mpsc::TryRecvError) -> Self {
+            match err {
+                mpsc::TryRecvError::Empty => Self::Empty,
+                mpsc::TryRecvError::Disconnected => Self::Disconnected,
+            }
+        }
+    }
+
+    impl From<RecvError> for io::Error {
+        fn from(err: RecvError) -> Self {
+            match err {
+                RecvError::Empty => io::Error::new(io::ErrorKind::WouldBlock, err),
+                RecvError::Disconnected => io::Error::new(io::ErrorKind::BrokenPipe, err),
+                RecvError::Taken => io::Error::new(io::ErrorKind::Other, err),
+            }
+        }
+    }
+
+    /// Receiver state.
+    #[derive(Default)]
+    enum State<T> {
+        Receiving(mpsc::Receiver<T>),
+        Received(T),
+        #[default]
+        Taken,
+    }
+
+    /// Receiver of value channel.
+    #[derive(Default)]
+    pub struct Receiver<T>(State<T>);
+
+    impl<T: fmt::Debug> fmt::Debug for Receiver<T> {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match &self.0 {
+                State::Receiving(_) => write!(f, "<uninit>"),
+                State::Received(v) => v.fmt(f),
+                State::Taken => write!(f, "<taken>"),
+            }
+        }
+    }
+
+    impl<T> Receiver<T> {
+        /// Get the value, if it has been sent.
+        pub fn get(&mut self) -> Result<&mut T, RecvError> {
+            match &mut self.0 {
+                State::Receiving(rx) => {
+                    let value = rx.try_recv()?;
+                    self.0 = State::Received(value);
+                }
+                State::Taken => return Err(RecvError::Taken),
+                _ => (),
+            }
+
+            let State::Received(value) = &mut self.0 else { unreachable!() };
+            Ok(value)
+        }
+
+        /// Wait for the value.
+        #[allow(dead_code)]
+        pub fn wait(&mut self) -> Result<&mut T, RecvError> {
+            if let State::Receiving(rx) = &mut self.0 {
+                let value = rx.recv()?;
+                self.0 = State::Received(value);
+            }
+
+            self.get()
+        }
+
+        /// Take the value, if it has been sent.
+        #[allow(dead_code)]
+        pub fn take(&mut self) -> Result<T, RecvError> {
+            self.get()?;
+
+            let State::Received(value) = mem::take(&mut self.0) else { unreachable!() };
+            Ok(value)
+        }
+    }
+
+    /// Creates a new value channel.
+    pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
+        let (tx, rx) = mpsc::channel();
+        (Sender(Mutex::new(Some(tx))), Receiver(State::Receiving(rx)))
     }
 }

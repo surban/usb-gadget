@@ -1,26 +1,14 @@
 //! USB gadget functions.
 
-use std::{cmp, hash, hash::Hash, sync::Arc};
-
-mod custom;
-pub use custom::*;
-
-mod hid;
-pub use hid::*;
-
-mod msd;
-pub use msd::*;
-
-mod net;
-pub use net::*;
-
-mod other;
-pub use other::*;
-
-mod serial;
-pub use serial::*;
-
+pub mod custom;
+pub mod hid;
+pub mod msd;
+pub mod net;
+pub mod other;
+pub mod serial;
 pub mod util;
+
+use std::{cmp, hash, hash::Hash, sync::Arc};
 
 use self::util::{register_remove_handler, Function};
 
@@ -53,7 +41,7 @@ impl Eq for Handle {}
 
 impl PartialOrd for Handle {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Arc::as_ptr(&self.0).partial_cmp(&Arc::as_ptr(&other.0))
+        Some(self.cmp(other))
     }
 }
 
@@ -71,5 +59,6 @@ impl Hash for Handle {
 
 /// Register included remove handlers.
 fn register_remove_handlers() {
+    register_remove_handler(custom::driver(), custom::remove_handler);
     register_remove_handler(msd::driver(), msd::remove_handler);
 }
