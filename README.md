@@ -38,7 +38,7 @@ This crate provides the following optional features:
 Requirements
 ------------
 
-The minimum support Rust version (MSRV) is 1.72.
+The minimum support Rust version (MSRV) is 1.73.
 
 A USB device controller (UDC) supported by Linux is required. Normally, standard
 PCs *do not* include an UDC.
