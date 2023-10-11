@@ -5,10 +5,12 @@
 use std::{
     ffi::OsString,
     io::{Error, ErrorKind, Result},
-    path::PathBuf,
 };
 
-use super::{util::FunctionDir, Function, Handle};
+use super::{
+    util::{FunctionDir, Status},
+    Function, Handle,
+};
 
 /// Builder for USB human interface device (HID) function.
 #[derive(Debug, Clone)]
@@ -74,9 +76,9 @@ impl Hid {
         HidBuilder { sub_class: 0, protocol: 0, report_desc: Vec::new(), report_len: 0, no_out_endpoint: false }
     }
 
-    /// Path of this USB function in configfs.
-    pub fn path(&self) -> Result<PathBuf> {
-        self.dir.dir()
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
     }
 
     /// Device major and minor numbers.

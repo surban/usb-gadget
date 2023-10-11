@@ -8,7 +8,10 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use super::{util::FunctionDir, Function, Handle};
+use super::{
+    util::{FunctionDir, Status},
+    Function, Handle,
+};
 
 /// Builder for other USB function implemented by a kernel function driver.
 #[derive(Debug, Clone)]
@@ -88,9 +91,9 @@ impl Other {
         Ok(OtherBuilder { driver: driver.to_os_string(), properties: HashMap::new() })
     }
 
-    /// Path of this USB function in configfs.
-    pub fn path(&self) -> Result<PathBuf> {
-        self.dir.dir()
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
     }
 
     /// Get a property value.

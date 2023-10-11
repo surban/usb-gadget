@@ -18,7 +18,7 @@ use std::{
 };
 
 use super::{
-    util::{split_function_dir, value, FunctionDir},
+    util::{split_function_dir, value, FunctionDir, Status},
     Function, Handle,
 };
 use crate::{Class, Language};
@@ -706,9 +706,9 @@ impl Custom {
         CustomBuilder { interfaces: Vec::new(), all_ctrl_recipient: false, config0_setup: false }
     }
 
-    /// Path of this USB function in configfs.
-    pub fn path(&self) -> Result<PathBuf> {
-        self.dir.dir()
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
     }
 
     fn ep0(&mut self) -> Result<Arc<File>> {

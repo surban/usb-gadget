@@ -15,7 +15,7 @@ fn other_ecm() {
 
     let reg = reg(func);
 
-    println!("Other device at {}", other.path().unwrap().display());
+    println!("Other device at {}", other.status().path().unwrap().display());
 
     let mut dev_addr2 = other.get("dev_addr").unwrap();
     dev_addr2.retain(|&c| c != 0);

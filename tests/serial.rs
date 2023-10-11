@@ -16,12 +16,12 @@ fn serial(serial_class: SerialClass) {
     let reg = reg(func);
     let tty = serial.tty().unwrap();
 
-    println!("Serial device {} function at {}", tty.display(), serial.path().unwrap().display());
+    println!("Serial device {} function at {}", tty.display(), serial.status().path().unwrap().display());
 
     assert!(tty.metadata().unwrap().file_type().is_char_device());
 
     if unreg(reg).unwrap() {
-        assert!(serial.path().is_err());
+        assert!(serial.status().path().is_none());
         assert!(serial.tty().is_err());
     }
 }

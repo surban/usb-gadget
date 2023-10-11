@@ -33,7 +33,7 @@ fn custom() {
         .build();
 
     let reg = reg(handle);
-    println!("Custom function at {}", custom.path().unwrap().display());
+    println!("Custom function at {}", custom.status().path().unwrap().display());
     println!("real interface address 0: {}", custom.real_address(0).unwrap());
     println!();
 
@@ -53,7 +53,7 @@ fn custom() {
 
     println!("Unregistering");
     if unreg(reg).unwrap() {
-        assert!(custom.path().is_err());
+        assert!(custom.status().path().is_none());
     }
 }
 
@@ -77,7 +77,7 @@ fn custom_with_host() {
         .build();
 
     let reg = reg(handle);
-    println!("Custom function at {}", custom.path().unwrap().display());
+    println!("Custom function at {}", custom.status().path().unwrap().display());
     println!("real interface address 0: {}", custom.real_address(0).unwrap());
     println!();
 
@@ -164,7 +164,7 @@ fn custom_with_host() {
 
     println!("Unregistering");
     if unreg(reg).unwrap() {
-        assert!(custom.path().is_err());
+        assert!(custom.status().path().is_none());
     }
 }
 
@@ -190,7 +190,7 @@ async fn async_custom_with_host() {
         .build();
 
     let reg = reg(handle);
-    println!("Custom function at {}", custom.path().unwrap().display());
+    println!("Custom function at {}", custom.status().path().unwrap().display());
     println!("real interface address 0: {}", custom.real_address(0).unwrap());
     println!();
 
@@ -273,6 +273,6 @@ async fn async_custom_with_host() {
 
     println!("Unregistering");
     if unreg(reg).unwrap() {
-        assert!(custom.path().is_err());
+        assert!(custom.status().path().is_none());
     }
 }

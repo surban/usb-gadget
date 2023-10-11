@@ -22,7 +22,7 @@ fn hid() {
 
     let reg = reg(func);
 
-    println!("HID device {:?} at {}", hid.device().unwrap(), hid.path().unwrap().display());
+    println!("HID device {:?} at {}", hid.device().unwrap(), hid.status().path().unwrap().display());
 
     unreg(reg).unwrap();
 }

@@ -34,15 +34,81 @@ pub trait Function: fmt::Debug + Send + Sync + 'static {
     }
 }
 
+/// USB function registration state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum State {
+    /// Function is not registered.
+    Unregistered,
+    /// Function is registered but not bound to UDC.
+    Registered,
+    /// Function is registered and bound to UDC.
+    Bound,
+}
+
+/// Provides access to the status of a USB function.
+#[derive(Clone, Debug)]
+pub struct Status(FunctionDir);
+
+impl Status {
+    /// Registration state.
+    pub fn state(&self) -> State {
+        let inner = self.0.inner.lock().unwrap();
+        match (&inner.dir, inner.bound) {
+            (None, _) => State::Unregistered,
+            (Some(_), false) => State::Registered,
+            (Some(_), true) => State::Bound,
+        }
+    }
+
+    /// Waits for the function to be bound to a UDC.
+    #[cfg(feature = "tokio")]
+    pub async fn bound(&self) {
+        loop {
+            let notifier = self.0.notify.notified();
+            if self.state() == State::Bound {
+                return;
+            }
+            notifier.await;
+        }
+    }
+
+    /// Waits for the function to be unbound from a UDC.
+    #[cfg(feature = "tokio")]
+    pub async fn unbound(&self) {
+        loop {
+            let notifier = self.0.notify.notified();
+            if self.state() != State::Bound {
+                return;
+            }
+            notifier.await;
+        }
+    }
+
+    /// The USB gadget function directory in configfs, if registered.
+    pub fn path(&self) -> Option<PathBuf> {
+        self.0.inner.lock().unwrap().dir.clone()
+    }
+}
+
 /// USB gadget function directory container.
 ///
-/// Stores the directory in configfs of a USB funciton and provides access methods.
+/// Stores the directory in configfs of a USB function and provides access methods.
 #[derive(Clone)]
-pub struct FunctionDir(Arc<Mutex<Option<PathBuf>>>);
+pub struct FunctionDir {
+    inner: Arc<Mutex<FunctionDirInner>>,
+    #[cfg(feature = "tokio")]
+    notify: Arc<tokio::sync::Notify>,
+}
+
+#[derive(Debug, Default)]
+struct FunctionDirInner {
+    dir: Option<PathBuf>,
+    bound: bool,
+}
 
 impl fmt::Debug for FunctionDir {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("FunctionDir").field(&*self.0.lock().unwrap()).finish()
+        f.debug_tuple("FunctionDir").field(&*self.inner.lock().unwrap()).finish()
     }
 }
 
@@ -55,22 +121,39 @@ impl Default for FunctionDir {
 impl FunctionDir {
     /// Creates an empty function directory container.
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(None)))
+        Self {
+            inner: Arc::new(Mutex::new(FunctionDirInner::default())),
+            #[cfg(feature = "tokio")]
+            notify: Arc::new(tokio::sync::Notify::new()),
+        }
     }
 
     pub(crate) fn set_dir(&self, function_dir: &Path) {
-        *self.0.lock().unwrap() = Some(function_dir.to_path_buf());
+        self.inner.lock().unwrap().dir = Some(function_dir.to_path_buf());
+        self.notify.notify_waiters();
     }
 
     pub(crate) fn reset_dir(&self) {
-        *self.0.lock().unwrap() = None;
+        self.inner.lock().unwrap().dir = None;
+        self.notify.notify_waiters();
+    }
+
+    pub(crate) fn set_bound(&self, bound: bool) {
+        self.inner.lock().unwrap().bound = bound;
+        self.notify.notify_waiters();
+    }
+
+    /// Create status accessor.
+    pub fn status(&self) -> Status {
+        Status(self.clone())
     }
 
     /// The USB gadget function directory in configfs.
     pub fn dir(&self) -> Result<PathBuf> {
-        self.0
+        self.inner
             .lock()
             .unwrap()
+            .dir
             .clone()
             .ok_or_else(|| Error::new(ErrorKind::NotFound, "USB function not registered"))
     }

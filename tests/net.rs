@@ -22,14 +22,14 @@ fn net(net_class: NetClass) {
     println!(
         "Net device {} function at {}",
         net.ifname().unwrap().to_string_lossy(),
-        net.path().unwrap().display()
+        net.status().path().unwrap().display()
     );
 
     assert_eq!(net.dev_addr().unwrap(), dev_addr);
     assert_eq!(net.host_addr().unwrap(), host_addr);
 
     if unreg(reg).unwrap() {
-        assert!(net.path().is_err());
+        assert!(net.status().path().is_none());
         assert!(net.dev_addr().is_err());
     }
 }

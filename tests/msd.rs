@@ -27,7 +27,7 @@ fn msd() {
 
     let reg = reg(func);
 
-    println!("MSD device at {}", msd.path().unwrap().display());
+    println!("MSD device at {}", msd.status().path().unwrap().display());
 
     sleep(Duration::from_secs(1));
 

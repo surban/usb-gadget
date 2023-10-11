@@ -11,7 +11,8 @@ version = "0.2.0"
 edition = "2021"
 
 [features]
-default = []
+#default = []
+default = ["tokio"]
 
 [dependencies]
 tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }

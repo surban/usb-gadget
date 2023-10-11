@@ -4,10 +4,12 @@ use macaddr::MacAddr6;
 use std::{
     ffi::{OsStr, OsString},
     io::{Error, ErrorKind, Result},
-    path::PathBuf,
 };
 
-use super::{util::FunctionDir, Function, Handle};
+use super::{
+    util::{FunctionDir, Status},
+    Function, Handle,
+};
 use crate::{gadget::Class, hex_u8};
 
 /// Class of USB network device.
@@ -128,9 +130,9 @@ impl Net {
         NetBuilder { net_class, dev_addr: None, host_addr: None, qmult: None, interface_class: None }
     }
 
-    /// Path of this USB function in configfs.
-    pub fn path(&self) -> Result<PathBuf> {
-        self.dir.dir()
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
     }
 
     /// MAC address of device's end of this Ethernet over USB link.

@@ -6,7 +6,10 @@ use std::{
     path::PathBuf,
 };
 
-use super::{util::FunctionDir, Function, Handle};
+use super::{
+    util::{FunctionDir, Status},
+    Function, Handle,
+};
 
 /// Class of USB serial function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,9 +95,9 @@ impl Serial {
         SerialBuilder { serial_class, console: None }
     }
 
-    /// Path of this USB function in configfs.
-    pub fn path(&self) -> Result<PathBuf> {
-        self.dir.dir()
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
     }
 
     /// Path to TTY device.

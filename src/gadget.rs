@@ -477,10 +477,16 @@ impl RegGadget {
         };
 
         match fs::write(self.dir.join("UDC"), name.as_bytes()) {
-            Ok(()) => Ok(()),
-            Err(err) if udc.is_none() && err.raw_os_error() == Some(Errno::ENODEV as i32) => Ok(()),
-            Err(err) => Err(err),
+            Ok(()) => (),
+            Err(err) if udc.is_none() && err.raw_os_error() == Some(Errno::ENODEV as i32) => (),
+            Err(err) => return Err(err),
         }
+
+        for func in self.func_dirs.keys() {
+            func.get().dir().set_bound(udc.is_some());
+        }
+
+        Ok(())
     }
 
     /// Detach the handle from the USB gadget while keeping the USB gadget active.
@@ -491,6 +497,10 @@ impl RegGadget {
     fn do_remove(&mut self) -> Result<()> {
         for func in self.func_dirs.keys() {
             func.get().pre_removal()?;
+        }
+
+        for func in self.func_dirs.keys() {
+            func.get().dir().set_bound(false);
         }
 
         remove_at(&self.dir)?;

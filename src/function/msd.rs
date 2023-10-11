@@ -10,7 +10,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::{util::FunctionDir, Function, Handle};
+use super::{
+    util::{FunctionDir, Status},
+    Function, Handle,
+};
 
 pub(crate) fn driver() -> &'static OsStr {
     OsStr::new("mass_storage")
@@ -183,9 +186,9 @@ impl Msd {
         MsdBuilder { stall: None, luns: Vec::new() }
     }
 
-    /// Path of this USB function in configfs.
-    pub fn path(&self) -> Result<PathBuf> {
-        self.dir.dir()
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
     }
 
     /// Forcibly detach the backing file from the LUN, regardless of whether the host has allowed it.
