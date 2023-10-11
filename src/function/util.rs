@@ -43,6 +43,8 @@ pub enum State {
     Registered,
     /// Function is registered and bound to UDC.
     Bound,
+    /// Function was removed and will stay in this state.
+    Removed,
 }
 
 /// Provides access to the status of a USB function.
@@ -53,20 +55,25 @@ impl Status {
     /// Registration state.
     pub fn state(&self) -> State {
         let inner = self.0.inner.lock().unwrap();
-        match (&inner.dir, inner.bound) {
-            (None, _) => State::Unregistered,
-            (Some(_), false) => State::Registered,
-            (Some(_), true) => State::Bound,
+        match (&inner.dir, inner.dir_was_set, inner.bound) {
+            (None, false, _) => State::Unregistered,
+            (None, true, _) => State::Removed,
+            (Some(_), _, false) => State::Registered,
+            (Some(_), _, true) => State::Bound,
         }
     }
 
     /// Waits for the function to be bound to a UDC.
+    ///
+    /// Returns with a broken pipe error if gadget is removed.
     #[cfg(feature = "tokio")]
-    pub async fn bound(&self) {
+    pub async fn bound(&self) -> Result<()> {
         loop {
             let notifier = self.0.notify.notified();
-            if self.state() == State::Bound {
-                return;
+            match self.state() {
+                State::Bound => return Ok(()),
+                State::Removed => return Err(Error::new(ErrorKind::BrokenPipe, "gadget was removed")),
+                _ => (),
             }
             notifier.await;
         }
@@ -103,6 +110,7 @@ pub struct FunctionDir {
 #[derive(Debug, Default)]
 struct FunctionDirInner {
     dir: Option<PathBuf>,
+    dir_was_set: bool,
     bound: bool,
 }
 
@@ -129,7 +137,9 @@ impl FunctionDir {
     }
 
     pub(crate) fn set_dir(&self, function_dir: &Path) {
-        self.inner.lock().unwrap().dir = Some(function_dir.to_path_buf());
+        let mut inner = self.inner.lock().unwrap();
+        inner.dir = Some(function_dir.to_path_buf());
+        inner.dir_was_set = true;
         self.notify.notify_waiters();
     }
 
