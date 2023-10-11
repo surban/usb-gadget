@@ -391,7 +391,7 @@ pub(crate) mod value {
     /// Receiver state.
     #[derive(Default)]
     enum State<T> {
-        Receiving(mpsc::Receiver<T>),
+        Receiving(Mutex<mpsc::Receiver<T>>),
         Received(T),
         #[default]
         Taken,
@@ -416,7 +416,7 @@ pub(crate) mod value {
         pub fn get(&mut self) -> Result<&mut T, RecvError> {
             match &mut self.0 {
                 State::Receiving(rx) => {
-                    let value = rx.try_recv()?;
+                    let value = rx.get_mut().unwrap().try_recv()?;
                     self.0 = State::Received(value);
                 }
                 State::Taken => return Err(RecvError::Taken),
@@ -431,7 +431,7 @@ pub(crate) mod value {
         #[allow(dead_code)]
         pub fn wait(&mut self) -> Result<&mut T, RecvError> {
             if let State::Receiving(rx) = &mut self.0 {
-                let value = rx.recv()?;
+                let value = rx.get_mut().unwrap().recv()?;
                 self.0 = State::Received(value);
             }
 
@@ -451,6 +451,6 @@ pub(crate) mod value {
     /// Creates a new value channel.
     pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
         let (tx, rx) = mpsc::channel();
-        (Sender(Mutex::new(Some(tx))), Receiver(State::Receiving(rx)))
+        (Sender(Mutex::new(Some(tx))), Receiver(State::Receiving(Mutex::new(rx))))
     }
 }
