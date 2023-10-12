@@ -386,14 +386,12 @@ impl Driver {
             return None;
         }
 
-        let notify = self.notify.clone();
-
         loop {
             if let Some(op) = self.try_completed() {
                 return Some(op);
             }
 
-            notify.notified().await;
+            self.notify.notified().await;
         }
     }
 
