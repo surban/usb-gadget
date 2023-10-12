@@ -411,6 +411,10 @@ impl Gadget {
         log::debug!("binding gadget to UDC {}", udc.name().to_string_lossy());
         fs::write(dir.join("UDC"), udc.name().as_bytes())?;
 
+        for func in func_dirs.keys() {
+            func.get().dir().set_bound(true);
+        }
+
         log::debug!("gadget at {} created", dir.display());
         Ok(RegGadget { dir, attached: true, func_dirs })
     }
