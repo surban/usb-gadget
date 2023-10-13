@@ -4,14 +4,25 @@
         "target/": true,
     },
     "cSpell.words": [
+        "Azeri",
+        "Belarussian",
+        "Bokmal",
         "CONFIGFS",
         "eventfd",
         "functionfs",
         "Gbit",
         "iocb",
+        "Johab",
+        "Konkani",
+        "Manipuri",
         "Mbit",
         "MSRV",
-        "RNDIS"
+        "Rica",
+        "RNDIS",
+        "Sutu",
+        "Tatarstan",
+        "udcs",
+        "wakeup"
     ],
     "cSpell.languageSettings": [
         {
