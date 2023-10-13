@@ -7,12 +7,11 @@ license = "Apache-2.0"
 repository = "https://github.com/surban/usb-gadget"
 authors = ["Sebastian Urban <surban@surban.net>"]
 rust-version = "1.73"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [features]
-#default = []
-default = ["tokio"]
+default = []
 
 [dependencies]
 tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }

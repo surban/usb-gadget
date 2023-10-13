@@ -140,16 +140,22 @@ impl FunctionDir {
         let mut inner = self.inner.lock().unwrap();
         inner.dir = Some(function_dir.to_path_buf());
         inner.dir_was_set = true;
+
+        #[cfg(feature = "tokio")]
         self.notify.notify_waiters();
     }
 
     pub(crate) fn reset_dir(&self) {
         self.inner.lock().unwrap().dir = None;
+
+        #[cfg(feature = "tokio")]
         self.notify.notify_waiters();
     }
 
     pub(crate) fn set_bound(&self, bound: bool) {
         self.inner.lock().unwrap().bound = bound;
+
+        #[cfg(feature = "tokio")]
         self.notify.notify_waiters();
     }
 
