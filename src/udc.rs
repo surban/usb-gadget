@@ -79,7 +79,7 @@ impl Udc {
         fs::write(self.dir.join("srp"), "1")
     }
 
-    /// Connect or disconnect data pullup resistors thus causing a logical connection to or disconnection from the USB host.
+    /// Connect or disconnect data pull-up resistors thus causing a logical connection to or disconnection from the USB host.
     pub fn set_soft_connect(&self, connect: bool) -> Result<()> {
         fs::write(self.dir.join("soft_connect"), if connect { "connect" } else { "disconnect" })
     }

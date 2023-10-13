@@ -167,13 +167,13 @@ pub enum Language {
     Konkani,
     /// Korean
     Korean,
-    /// KoreanJohab
+    /// Korean (Johab)
     KoreanJohab,
     /// Latvian
     Latvian,
     /// Lithuanian
     Lithuanian,
-    /// LithuanianClassic
+    /// Lithuanian (Classic)
     LithuanianClassic,
     /// Macedonian
     Macedonian,
