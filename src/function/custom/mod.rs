@@ -349,32 +349,34 @@ impl OsExtProp {
         Self::new("DeviceInterfaceGUID", guid.to_string())
     }
 
-    /// Indicate whether the device can power down when idle (selective suspend).
-    pub fn device_idle_enabled(enabled: bool) -> Self {
-        Self::new("DeviceIdleEnabled", u32::from(enabled))
-    }
-
-    /// Indicate whether the device can be suspended when idle by default.
-    pub fn default_idle_state(state: bool) -> Self {
-        Self::new("DefaultIdleState", u32::from(state))
-    }
-
-    /// Indicate the amount of time in milliseconds to wait before determining that a device is idle.
-    pub fn default_idle_timeout(timeout_ms: u32) -> Self {
-        Self::new("DefaultIdleTimeout", timeout_ms)
-    }
-
-    /// Indicate whether to allow the user to control the ability of the device to enable
-    /// or disable USB selective suspend.
-    pub fn user_set_device_idle_enabled(enabled: bool) -> Self {
-        Self::new("UserSetDeviceIdleEnabled", u32::from(enabled))
-    }
-
-    /// Indicate whether to allow the user to control the ability of the device to wake the system
-    /// from a low-power state.
-    pub fn system_wake_enabled(enabled: bool) -> Self {
-        Self::new("SystemWakeEnabled", u32::from(enabled))
-    }
+    // Unsupported by Linux 6.5
+    //
+    //     /// Indicate whether the device can power down when idle (selective suspend).
+    //     pub fn device_idle_enabled(enabled: bool) -> Self {
+    //         Self::new("DeviceIdleEnabled", u32::from(enabled))
+    //     }
+    //
+    //     /// Indicate whether the device can be suspended when idle by default.
+    //     pub fn default_idle_state(state: bool) -> Self {
+    //         Self::new("DefaultIdleState", u32::from(state))
+    //     }
+    //
+    //     /// Indicate the amount of time in milliseconds to wait before determining that a device is idle.
+    //     pub fn default_idle_timeout(timeout_ms: u32) -> Self {
+    //         Self::new("DefaultIdleTimeout", timeout_ms)
+    //     }
+    //
+    //     /// Indicate whether to allow the user to control the ability of the device to enable
+    //     /// or disable USB selective suspend.
+    //     pub fn user_set_device_idle_enabled(enabled: bool) -> Self {
+    //         Self::new("UserSetDeviceIdleEnabled", u32::from(enabled))
+    //     }
+    //
+    //     /// Indicate whether to allow the user to control the ability of the device to wake the system
+    //     /// from a low-power state.
+    //     pub fn system_wake_enabled(enabled: bool) -> Self {
+    //         Self::new("SystemWakeEnabled", u32::from(enabled))
+    //     }
 
     fn as_os_ext_prop(&self) -> ffs::OsExtProp {
         let mut name = self.name.clone();

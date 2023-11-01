@@ -72,12 +72,9 @@ fn custom_with_os_desc() {
                 .with_endpoint(Endpoint::bulk(ep1_dir))
                 .with_endpoint(Endpoint::bulk(ep2_dir))
                 .with_os_ext_compat(OsExtCompat::winusb())
-                .with_os_ext_prop(OsExtProp::device_interface_guid(uuid!("8FE6D4D7-49DD-41E7-9486-49AFC6BFE475")))
-                .with_os_ext_prop(OsExtProp::device_idle_enabled(true))
-                .with_os_ext_prop(OsExtProp::default_idle_state(true))
-                .with_os_ext_prop(OsExtProp::default_idle_timeout(5000))
-                .with_os_ext_prop(OsExtProp::user_set_device_idle_enabled(true))
-                .with_os_ext_prop(OsExtProp::system_wake_enabled(false)),
+                .with_os_ext_prop(OsExtProp::device_interface_guid(uuid!(
+                    "8FE6D4D7-49DD-41E7-9486-49AFC6BFE475"
+                ))),
         )
         .build();
 
