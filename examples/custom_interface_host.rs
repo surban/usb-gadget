@@ -5,7 +5,7 @@ use std::{thread, time::Duration};
 use rusb::{open_device_with_vid_pid, request_type, Direction, RequestType};
 
 fn main() {
-    let mut hnd = open_device_with_vid_pid(4, 5).expect("USB device not found");
+    let mut hnd = open_device_with_vid_pid(6, 0x11).expect("USB device not found");
     let dev = hnd.device();
     println!("device opened: {hnd:?}");
 

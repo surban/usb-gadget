@@ -44,7 +44,6 @@ async fn main() {
     .expect("cannot bind to UDC");
 
     println!("Custom function at {}", custom.status().path().unwrap().display());
-    println!("real interface address 0: {}", custom.real_address(0).unwrap());
     println!();
 
     let ep1_control = ep1_rx.control().unwrap();
