@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.4.0 - 2023-11-01
+### Added
+- extend Microsoft OS descriptor support
+
+
 ## 0.3.0 - 2023-10-13
 ### Added
 - expose gadget registration status
