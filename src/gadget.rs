@@ -97,17 +97,24 @@ pub struct OsDescriptor {
     pub vendor_code: u8,
     /// Signature.
     pub qw_sign: String,
+    /// Index of configuration in [`Gadget::configs`] to be reported at index 0.
+    ///
+    /// Hosts which expect the "OS Descriptors" ask only for configurations at index 0,
+    /// but Linux-based USB devices can provide more than one configuration.
+    pub config: usize,
 }
 
 impl OsDescriptor {
     /// Creates a new instance.
     pub const fn new(vendor_code: u8, qw_sign: String) -> Self {
-        Self { vendor_code, qw_sign }
+        Self { vendor_code, qw_sign, config: 0 }
     }
 
     /// The Microsoft OS descriptor.
+    ///
+    /// Uses vendor code 0x02.
     pub fn microsoft() -> Self {
-        Self { vendor_code: 0x02, qw_sign: "MSFT100".to_string() }
+        Self { vendor_code: 0x02, qw_sign: "MSFT100".to_string(), config: 0 }
     }
 }
 
@@ -143,7 +150,7 @@ pub struct WebUsb {
 
 impl WebUsb {
     /// Creates a new instance.
-    pub fn new(vendor_code: u8, landing_page: impl AsRef<String>) -> Self {
+    pub fn new(vendor_code: u8, landing_page: impl AsRef<str>) -> Self {
         Self { version: WebUsbVersion::default(), vendor_code, landing_page: landing_page.as_ref().to_string() }
     }
 }
@@ -199,7 +206,7 @@ impl Config {
 
     fn register(
         &self, gadget_dir: &Path, idx: usize, func_dirs: &HashMap<function::Handle, PathBuf>,
-    ) -> Result<()> {
+    ) -> Result<PathBuf> {
         let dir = gadget_dir.join("configs").join(format!("c.{idx}"));
         log::debug!("creating config at {}", dir.display());
         fs::create_dir(&dir)?;
@@ -227,7 +234,7 @@ impl Config {
             symlink(func_dir, dir.join(func_dir.file_name().unwrap()))?;
         }
 
-        Ok(())
+        Ok(dir)
     }
 }
 
@@ -279,7 +286,7 @@ pub struct Gadget {
     pub usb_version: UsbVersion,
     /// Maximum speed supported by driver.
     pub max_speed: Option<Speed>,
-    /// OS String extension.
+    /// OS descriptor extension.
     pub os_descriptor: Option<OsDescriptor>,
     /// WebUSB extension.
     pub web_usb: Option<WebUsb>,
@@ -312,6 +319,18 @@ impl Gadget {
     /// Adds a USB device configuration.
     pub fn with_config(mut self, config: Config) -> Self {
         self.add_config(config);
+        self
+    }
+
+    /// Sets the OS descriptor.
+    pub fn with_os_descriptor(mut self, os_descriptor: OsDescriptor) -> Self {
+        self.os_descriptor = Some(os_descriptor);
+        self
+    }
+
+    /// Sets the WebUSB extension.
+    pub fn with_web_usb(mut self, web_usb: WebUsb) -> Self {
+        self.web_usb = Some(web_usb);
         self
     }
 
@@ -356,17 +375,6 @@ impl Gadget {
             fs::write(dir.join("max_speed"), v.to_string())?;
         }
 
-        if let Some(os_desc) = &self.os_descriptor {
-            let os_desc_dir = dir.join("os_desc");
-            if os_desc_dir.is_dir() {
-                fs::write(os_desc_dir.join("b_vendor_code"), hex_u8(os_desc.vendor_code))?;
-                fs::write(os_desc_dir.join("qw_sign"), &os_desc.qw_sign)?;
-                fs::write(os_desc_dir.join("use"), "1")?;
-            } else {
-                log::warn!("USB OS descriptor is unsupported by kernel");
-            }
-        }
-
         if let Some(webusb) = &self.web_usb {
             let webusb_dir = dir.join("webusb");
             if webusb_dir.is_dir() {
@@ -404,8 +412,26 @@ impl Gadget {
             func_dirs.insert(func.clone(), func_dir);
         }
 
+        let mut config_dirs = Vec::new();
         for (idx, config) in self.configs.iter().enumerate() {
-            config.register(&dir, idx + 1, &func_dirs)?;
+            let dir = config.register(&dir, idx + 1, &func_dirs)?;
+            config_dirs.push(dir);
+        }
+
+        if let Some(os_desc) = &self.os_descriptor {
+            let os_desc_dir = dir.join("os_desc");
+            if os_desc_dir.is_dir() {
+                fs::write(os_desc_dir.join("b_vendor_code"), hex_u8(os_desc.vendor_code))?;
+                fs::write(os_desc_dir.join("qw_sign"), &os_desc.qw_sign)?;
+                fs::write(os_desc_dir.join("use"), "1")?;
+
+                let config_dir = config_dirs.get(os_desc.config).ok_or_else(|| {
+                    Error::new(ErrorKind::InvalidInput, "invalid configuration index in OS descriptor")
+                })?;
+                symlink(config_dir, os_desc_dir.join(config_dir.file_name().unwrap()))?;
+            } else {
+                log::warn!("USB OS descriptor is unsupported by kernel");
+            }
         }
 
         log::debug!("binding gadget to UDC {}", udc.name().to_string_lossy());
@@ -544,6 +570,16 @@ fn remove_at(dir: &Path) -> Result<()> {
     init_remove_handlers();
 
     let _ = fs::write(dir.join("UDC"), "\n");
+
+    if let Ok(entries) = fs::read_dir(dir.join("os_desc")) {
+        for file in entries {
+            let Ok(file) = file else { continue };
+            let Ok(file_type) = file.file_type() else { continue };
+            if file_type.is_symlink() {
+                fs::remove_file(file.path())?;
+            }
+        }
+    }
 
     for config_dir in fs::read_dir(dir.join("configs"))? {
         let Ok(config_dir) = config_dir else { continue };

@@ -7,9 +7,10 @@ use std::{
     thread,
     time::Duration,
 };
+use uuid::uuid;
 
 use usb_gadget::{
-    function::custom::{Custom, Endpoint, EndpointDirection, Event, Interface},
+    function::custom::{Custom, Endpoint, EndpointDirection, Event, Interface, OsExtCompat, OsExtProp},
     Class,
 };
 
@@ -50,6 +51,54 @@ fn custom() {
     println!();
 
     thread::sleep(Duration::from_secs(1));
+
+    println!("Unregistering");
+    if unreg(reg).unwrap() {
+        assert!(custom.status().path().is_none());
+    }
+}
+
+#[test]
+fn custom_with_os_desc() {
+    init();
+    let _mutex = exclusive();
+
+    let (mut ep1_rx, ep1_dir) = EndpointDirection::host_to_device();
+    let (mut ep2_tx, ep2_dir) = EndpointDirection::device_to_host();
+
+    let (mut custom, handle) = Custom::builder()
+        .with_interface(
+            Interface::new(Class::vendor_specific(1, 1), "custom interface")
+                .with_endpoint(Endpoint::bulk(ep1_dir))
+                .with_endpoint(Endpoint::bulk(ep2_dir))
+                .with_os_ext_compat(OsExtCompat::winusb())
+                .with_os_ext_prop(OsExtProp::device_interface_guid(uuid!("8FE6D4D7-49DD-41E7-9486-49AFC6BFE475")))
+                .with_os_ext_prop(OsExtProp::device_idle_enabled(true))
+                .with_os_ext_prop(OsExtProp::default_idle_state(true))
+                .with_os_ext_prop(OsExtProp::default_idle_timeout(5000))
+                .with_os_ext_prop(OsExtProp::user_set_device_idle_enabled(true))
+                .with_os_ext_prop(OsExtProp::system_wake_enabled(false)),
+        )
+        .build();
+
+    let reg = reg_with_os_desc(handle);
+    println!("Custom function at {}", custom.status().path().unwrap().display());
+    println!("real interface address 0: {}", custom.real_address(0).unwrap());
+    println!();
+
+    let ep1_control = ep1_rx.control().unwrap();
+    println!("ep1 unclaimed: {:?}", ep1_control.unclaimed_fifo());
+    println!("ep1 real address: {}", ep1_control.real_address().unwrap());
+    println!("ep1 descriptor: {:?}", ep1_control.descriptor().unwrap());
+    println!();
+
+    let ep2_control = ep2_tx.control().unwrap();
+    println!("ep2 unclaimed: {:?}", ep2_control.unclaimed_fifo());
+    println!("ep2 real address: {}", ep2_control.real_address().unwrap());
+    println!("ep2 descriptor: {:?}", ep2_control.descriptor().unwrap());
+    println!();
+
+    thread::sleep(Duration::from_secs(10));
 
     println!("Unregistering");
     if unreg(reg).unwrap() {

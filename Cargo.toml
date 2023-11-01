@@ -23,6 +23,7 @@ bitflags = "2.4"
 byteorder = "1"
 log = "0.4"
 libc = "0.2"
+uuid = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "time"] }

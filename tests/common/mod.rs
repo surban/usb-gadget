@@ -9,7 +9,9 @@ use std::{
     time::Duration,
 };
 
-use usb_gadget::{default_udc, function::Handle, registered, Class, Config, Gadget, Id, RegGadget, Strings};
+use usb_gadget::{
+    default_udc, function::Handle, registered, Class, Config, Gadget, Id, OsDescriptor, RegGadget, Strings,
+};
 
 pub fn init() {
     static INIT: Once = Once::new();
@@ -38,6 +40,29 @@ pub fn reg(func: Handle) -> RegGadget {
             .with_config(Config::new("config").with_function(func))
             .bind(&udc)
             .expect("cannot bind to UDC");
+
+    assert!(reg.is_attached());
+    assert_eq!(reg.udc().unwrap().unwrap(), udc.name());
+
+    println!("registered USB gadget {} at {}", reg.name().to_string_lossy(), reg.path().display());
+
+    sleep(Duration::from_secs(3));
+
+    reg
+}
+
+pub fn reg_with_os_desc(func: Handle) -> RegGadget {
+    let udc = default_udc().expect("cannot get UDC");
+
+    let reg = Gadget::new(
+        Class::new(1, 2, 3),
+        Id::new(6, 9),
+        Strings::new("manufacturer", "product with OS descriptor", "serial_number"),
+    )
+    .with_config(Config::new("config").with_function(func))
+    .with_os_descriptor(OsDescriptor::microsoft())
+    .bind(&udc)
+    .expect("cannot bind to UDC");
 
     assert!(reg.is_attached());
     assert_eq!(reg.udc().unwrap().unwrap(), udc.name());

@@ -361,7 +361,7 @@ impl OsDescExt {
     fn write(&self, data: &mut Vec<u8>) -> Result<()> {
         match self {
             Self::ExtCompat(compats) => {
-                data.write_u16::<LE>(1)?; // bcdVersion
+                data.write_u16::<LE>(0x0100)?; // bcdVersion
                 data.write_u16::<LE>(4)?; // wIndex
                 data.write_u8(compats.len().try_into()?)?;
                 data.write_u8(0)?;
@@ -371,7 +371,7 @@ impl OsDescExt {
                 }
             }
             Self::ExtProp(props) => {
-                data.write_u16::<LE>(1)?; // bcdVersion
+                data.write_u16::<LE>(0x0100)?; // bcdVersion
                 data.write_u16::<LE>(5)?; // wIndex
                 data.write_u16::<LE>(props.len().try_into()?)?;
 
@@ -415,12 +415,13 @@ impl OsExtProp {
 
         data.write_u32::<LE>(0)?; // length
         data.write_u32::<LE>(self.data_type)?;
-        data.write_u32::<LE>(self.name.len().try_into()?)?;
+        data.write_u16::<LE>(self.name.len().try_into()?)?;
         data.write_all(self.name.as_bytes())?;
         data.write_u32::<LE>(self.data.len().try_into()?)?;
         data.write_all(&self.data)?;
 
         let len: u32 = data.len().try_into()?;
+        assert_eq!(len as usize, 14 + self.name.len() + self.data.len(), "invalid OS descriptor length");
         data[0..4].copy_from_slice(&len.to_le_bytes());
         Ok(data)
     }
