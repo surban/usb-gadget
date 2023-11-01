@@ -19,6 +19,6 @@ jobs:
     - name: Update Rust
       run: rustup update
     - name: Build
-      run: cargo build --quiet
+      run: cargo build --quiet --all-targets
     - name: Build with Tokio support
-      run: cargo build --quiet --features tokio
+      run: cargo build --quiet --features tokio --all-targets

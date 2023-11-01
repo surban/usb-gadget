@@ -31,5 +31,6 @@
                 "CStyleComment"
             ]
         }
-    ]
+    ],
+    "rust-analyzer.cargo.features": "all",
 }

@@ -1,12 +1,10 @@
-//! Host-side tests for custom gadget.
+//! Host-side example for USB gadget with custom interface.
 
 use std::{thread, time::Duration};
 
 use rusb::{open_device_with_vid_pid, request_type, Direction, RequestType};
 
-#[test]
-#[ignore = "host-side test"]
-fn custom_host() {
+fn main() {
     let mut hnd = open_device_with_vid_pid(4, 5).expect("USB device not found");
     let dev = hnd.device();
     println!("device opened: {hnd:?}");
