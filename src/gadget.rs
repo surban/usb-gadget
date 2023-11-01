@@ -93,7 +93,7 @@ impl Strings {
 /// USB gadget operating system descriptor.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OsDescriptor {
-    /// Vendor code.
+    /// Vendor code for requests.
     pub vendor_code: u8,
     /// Signature.
     pub qw_sign: String,
@@ -112,9 +112,9 @@ impl OsDescriptor {
 
     /// The Microsoft OS descriptor.
     ///
-    /// Uses vendor code 0x02.
+    /// Uses vendor code 0xf0 for requests.
     pub fn microsoft() -> Self {
-        Self { vendor_code: 0x02, qw_sign: "MSFT100".to_string(), config: 0 }
+        Self { vendor_code: 0xf0, qw_sign: "MSFT100".to_string(), config: 0 }
     }
 }
 
