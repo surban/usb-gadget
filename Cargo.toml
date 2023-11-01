@@ -34,8 +34,10 @@ env_logger = "0.10"
 [[example]]
 name = "custom_interface_device_async"
 required-features = ["tokio"]
+doc-scrape-examples = true
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
