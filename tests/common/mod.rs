@@ -11,6 +11,7 @@ use std::{
 
 use usb_gadget::{
     default_udc, function::Handle, registered, Class, Config, Gadget, Id, OsDescriptor, RegGadget, Strings,
+    WebUsb,
 };
 
 pub fn init() {
@@ -55,12 +56,13 @@ pub fn reg_with_os_desc(func: Handle) -> RegGadget {
     let udc = default_udc().expect("cannot get UDC");
 
     let reg = Gadget::new(
-        Class::new(1, 2, 3),
-        Id::new(6, 9),
+        Class::new(255, 255, 3),
+        Id::new(6, 0x11),
         Strings::new("manufacturer", "product with OS descriptor", "serial_number"),
     )
     .with_config(Config::new("config").with_function(func))
     .with_os_descriptor(OsDescriptor::microsoft())
+    .with_web_usb(WebUsb::new(0xf1, "http://webusb.org"))
     .bind(&udc)
     .expect("cannot bind to UDC");
 
