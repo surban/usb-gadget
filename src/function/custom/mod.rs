@@ -63,24 +63,28 @@ impl Interface {
     }
 
     /// Add an USB endpoint.
+    #[must_use]
     pub fn with_endpoint(mut self, endpoint: Endpoint) -> Self {
         self.endpoints.push(endpoint);
         self
     }
 
     /// Set the USB interface association.
+    #[must_use]
     pub fn with_association(mut self, association: &Association) -> Self {
         self.association = Some(association.clone());
         self
     }
 
     /// Adds a Microsoft extended compatibility descriptor.
+    #[must_use]
     pub fn with_os_ext_compat(mut self, os_ext_compat: OsExtCompat) -> Self {
         self.os_ext_compat.push(os_ext_compat);
         self
     }
 
     /// Adds a Microsoft extended property.
+    #[must_use]
     pub fn with_os_ext_prop(mut self, os_ext_prop: OsExtProp) -> Self {
         self.os_ext_props.push(os_ext_prop);
         self
@@ -170,6 +174,7 @@ impl EndpointDirection {
     }
 
     /// Sets the queue length.
+    #[must_use]
     pub fn with_queue_len(mut self, queue_len: u32) -> Self {
         self.queue_len = queue_len;
         self
@@ -493,6 +498,7 @@ impl CustomBuilder {
     }
 
     /// Add an USB interface.
+    #[must_use]
     pub fn with_interface(mut self, interface: Interface) -> Self {
         self.interfaces.push(interface);
         self

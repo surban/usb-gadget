@@ -199,6 +199,7 @@ impl Config {
     }
 
     /// Adds a USB function (interface) to this configuration.
+    #[must_use]
     pub fn with_function(mut self, function_handle: function::Handle) -> Self {
         self.add_function(function_handle);
         self
@@ -317,18 +318,21 @@ impl Gadget {
     }
 
     /// Adds a USB device configuration.
+    #[must_use]
     pub fn with_config(mut self, config: Config) -> Self {
         self.add_config(config);
         self
     }
 
     /// Sets the OS descriptor.
+    #[must_use]
     pub fn with_os_descriptor(mut self, os_descriptor: OsDescriptor) -> Self {
         self.os_descriptor = Some(os_descriptor);
         self
     }
 
     /// Sets the WebUSB extension.
+    #[must_use]
     pub fn with_web_usb(mut self, web_usb: WebUsb) -> Self {
         self.web_usb = Some(web_usb);
         self

@@ -116,6 +116,7 @@ impl MsdBuilder {
     }
 
     /// Adds a LUN.
+    #[must_use]
     pub fn with_lun(mut self, lun: Lun) -> Self {
         self.add_lun(lun);
         self
