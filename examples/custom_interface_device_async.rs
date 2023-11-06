@@ -1,5 +1,6 @@
 //! Device-side example for USB gadget with custom interface using async IO.
 
+use bytes::BytesMut;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -7,7 +8,6 @@ use std::{
     },
     time::Duration,
 };
-use bytes::BytesMut;
 
 use usb_gadget::{
     default_udc,

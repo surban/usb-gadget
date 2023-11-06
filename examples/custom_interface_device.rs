@@ -1,5 +1,6 @@
 //! Device-side example for USB gadget with custom interface.
 
+use bytes::BytesMut;
 use std::{
     io::ErrorKind,
     sync::{
@@ -9,7 +10,6 @@ use std::{
     thread,
     time::Duration,
 };
-use bytes::BytesMut;
 
 use usb_gadget::{
     default_udc,
