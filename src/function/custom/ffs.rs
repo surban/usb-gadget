@@ -521,10 +521,54 @@ impl Event {
 
 pub const FS_TYPE: &str = "functionfs";
 
-pub fn mount(instance: &OsStr, target: &Path) -> std::io::Result<()> {
+/// FunctionFS mount options.
+#[derive(Debug, Clone, Default)]
+pub struct MountOptions {
+    pub no_disconnect: bool,
+    pub rmode: Option<u32>,
+    pub fmode: Option<u32>,
+    pub mode: Option<u32>,
+    pub uid: Option<u32>,
+    pub gid: Option<u32>,
+}
+
+impl MountOptions {
+    fn to_mount_data(&self) -> String {
+        let mut opts = Vec::new();
+
+        if self.no_disconnect {
+            opts.push("no_disconnect=1".to_string());
+        }
+        if let Some(v) = self.rmode {
+            opts.push(format!("rmode={v}"));
+        }
+        if let Some(v) = self.fmode {
+            opts.push(format!("fmode={v}"));
+        }
+        if let Some(v) = self.mode {
+            opts.push(format!("mode={v}"));
+        }
+        if let Some(v) = self.uid {
+            opts.push(format!("uid={v}"));
+        }
+        if let Some(v) = self.gid {
+            opts.push(format!("gid={v}"));
+        }
+
+        opts.join(",")
+    }
+}
+
+pub fn mount(instance: &OsStr, target: &Path, opts: &MountOptions) -> std::io::Result<()> {
     let instance = instance.to_os_string();
     let target = target.to_path_buf();
-    nix::mount::mount(Some(instance.as_os_str()), &target, Some(FS_TYPE), MsFlags::empty(), None::<&str>)?;
+    nix::mount::mount(
+        Some(instance.as_os_str()),
+        &target,
+        Some(FS_TYPE),
+        MsFlags::empty(),
+        Some(opts.to_mount_data().as_str()),
+    )?;
     Ok(())
 }
 

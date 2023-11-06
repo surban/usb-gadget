@@ -45,6 +45,28 @@ pub fn reg(func: Handle) -> RegGadget {
     assert!(reg.is_attached());
     assert_eq!(reg.udc().unwrap().unwrap(), udc.name());
 
+    println!(
+        "bound USB gadget {} at {} to {}",
+        reg.name().to_string_lossy(),
+        reg.path().display(),
+        udc.name().to_string_lossy()
+    );
+
+    sleep(Duration::from_secs(3));
+
+    reg
+}
+
+pub fn reg_no_bind(func: Handle) -> RegGadget {
+    let reg =
+        Gadget::new(Class::new(1, 2, 3), Id::new(4, 5), Strings::new("manufacturer", "product", "serial_number"))
+            .with_config(Config::new("config").with_function(func))
+            .register()
+            .expect("cannot register gadget");
+
+    assert!(reg.is_attached());
+    assert_eq!(reg.udc().unwrap(), None);
+
     println!("registered USB gadget {} at {}", reg.name().to_string_lossy(), reg.path().display());
 
     sleep(Duration::from_secs(3));
@@ -69,7 +91,7 @@ pub fn reg_with_os_desc(func: Handle) -> RegGadget {
     assert!(reg.is_attached());
     assert_eq!(reg.udc().unwrap().unwrap(), udc.name());
 
-    println!("registered USB gadget {} at {}", reg.name().to_string_lossy(), reg.path().display());
+    println!("bound USB gadget {} at {}", reg.name().to_string_lossy(), reg.path().display());
 
     sleep(Duration::from_secs(3));
 

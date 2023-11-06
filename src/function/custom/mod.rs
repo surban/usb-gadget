@@ -14,7 +14,10 @@ use std::{
     io::{Error, ErrorKind, Read, Result, Write},
     os::fd::{AsRawFd, RawFd},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, Weak},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, Weak,
+    },
     time::Duration,
 };
 use uuid::Uuid;
@@ -483,6 +486,29 @@ pub struct CustomBuilder {
     pub all_ctrl_recipient: bool,
     /// Receive control requests in configuration 0.
     pub config0_setup: bool,
+    /// FunctionFS mount directory.
+    ///
+    /// The parent directory must exist.
+    /// If unspecified, a directory starting with `/dev/ffs-*` is created and used.
+    pub ffs_dir: Option<PathBuf>,
+    /// FunctionFS root permissions.
+    pub ffs_root_mode: Option<u32>,
+    /// FunctionFS file permissions.
+    pub ffs_file_mode: Option<u32>,
+    /// FunctionFS user id.
+    pub ffs_uid: Option<u32>,
+    /// FunctionFS group id.
+    pub ffs_gid: Option<u32>,
+    /// Do not disconnect USB gadget when interface files are closed.
+    pub ffs_no_disconnect: bool,
+    /// Do not initialize FunctionFS.
+    ///
+    /// No FunctionFS files are opened. This must then be done externally.
+    pub ffs_no_init: bool,
+    /// Do not mount FunctionFS.
+    ///
+    /// Implies [`ffs_no_init`](Self::ffs_no_init).
+    pub ffs_no_mount: bool,
 }
 
 impl CustomBuilder {
@@ -492,10 +518,53 @@ impl CustomBuilder {
     pub fn build(self) -> (Custom, Handle) {
         let dir = FunctionDir::new();
         let (ep0_tx, ep0_rx) = value::channel();
+        let (ffs_dir_tx, ffs_dir_rx) = value::channel();
+        let ep_files = Arc::new(Mutex::new(Vec::new()));
         (
-            Custom { dir: dir.clone(), ep0: ep0_rx, setup_event: None },
-            Handle::new(CustomFunction { builder: self, dir, ep0_tx, ep_files: Default::default() }),
+            Custom {
+                dir: dir.clone(),
+                ep0: ep0_rx,
+                setup_event: None,
+                ep_files: ep_files.clone(),
+                existing_ffs: false,
+                ffs_dir: ffs_dir_rx,
+            },
+            Handle::new(CustomFunction {
+                builder: self,
+                dir,
+                ep0_tx,
+                ep_files,
+                ffs_dir_created: AtomicBool::new(false),
+                ffs_dir_tx,
+            }),
         )
+    }
+
+    /// Use the specified pre-mounted FunctionFS directory.
+    ///
+    /// Descriptors and strings are written into the `ep0` device file.
+    ///
+    /// This allows usage of the custom interface functionality when the USB gadget has
+    /// been registered externally.
+    pub fn existing(mut self, ffs_dir: impl AsRef<Path>) -> Result<Custom> {
+        self.ffs_dir = Some(ffs_dir.as_ref().to_path_buf());
+
+        let dir = FunctionDir::new();
+        let (ep0_tx, ep0_rx) = value::channel();
+        let (ffs_dir_tx, ffs_dir_rx) = value::channel();
+        let ep_files = Arc::new(Mutex::new(Vec::new()));
+
+        let func = CustomFunction {
+            builder: self,
+            dir: dir.clone(),
+            ep0_tx,
+            ep_files: ep_files.clone(),
+            ffs_dir_created: AtomicBool::new(false),
+            ffs_dir_tx,
+        };
+        func.init()?;
+
+        Ok(Custom { dir, ep0: ep0_rx, setup_event: None, ep_files, existing_ffs: true, ffs_dir: ffs_dir_rx })
     }
 
     /// Add an USB interface.
@@ -644,9 +713,19 @@ impl CustomBuilder {
         let descs = ffs::Descs { flags, eventfd: None, fs_descrs, hs_descrs, ss_descrs, os_descrs };
         Ok((descs, strings))
     }
+
+    /// Gets the descriptor and string data for writing into `ep0` of FunctionFS.
+    ///
+    /// Normally, this is done automatically when the custom function is registered.
+    /// This function is only useful when descriptors and strings should be written
+    /// to `ep0` by other means.
+    pub fn ffs_descriptors_and_strings(&self) -> Result<(Vec<u8>, Vec<u8>)> {
+        let (descs, strs) = self.ffs_descs()?;
+        Ok((descs.to_bytes()?, strs.to_bytes()?))
+    }
 }
 
-fn dev_dir(instance: &OsStr) -> PathBuf {
+fn default_ffs_dir(instance: &OsStr) -> PathBuf {
     let mut name: OsString = "ffs-".into();
     name.push(instance);
     Path::new("/dev").join(name)
@@ -657,12 +736,80 @@ struct CustomFunction {
     builder: CustomBuilder,
     dir: FunctionDir,
     ep0_tx: value::Sender<Weak<File>>,
-    ep_files: Mutex<Vec<Arc<File>>>,
+    ep_files: Arc<Mutex<Vec<Arc<File>>>>,
+    ffs_dir_created: AtomicBool,
+    ffs_dir_tx: value::Sender<PathBuf>,
 }
 
 impl CustomFunction {
-    fn dev_dir(&self) -> Result<PathBuf> {
-        Ok(dev_dir(&self.dir.instance()?))
+    /// FunctionFS directory.
+    fn ffs_dir(&self) -> Result<PathBuf> {
+        match &self.builder.ffs_dir {
+            Some(ffs_dir) => Ok(ffs_dir.clone()),
+            None => Ok(default_ffs_dir(&self.dir.instance()?)),
+        }
+    }
+
+    /// Initialize FunctionFS.
+    ///
+    /// It must already be mounted.
+    fn init(&self) -> Result<()> {
+        let ffs_dir = self.ffs_dir()?;
+
+        if !self.builder.ffs_no_init {
+            let (descs, strs) = self.builder.ffs_descs()?;
+            log::trace!("functionfs descriptors: {descs:x?}");
+            log::trace!("functionfs strings: {strs:?}");
+
+            let ep0_path = ffs_dir.join("ep0");
+            let mut ep0 = File::options().read(true).write(true).open(&ep0_path)?;
+
+            log::debug!("writing functionfs descriptors to {}", ep0_path.display());
+            let descs_data = descs.to_bytes()?;
+            log::trace!("functionfs descriptor data: {descs_data:x?}");
+            if ep0.write(&descs_data)? != descs_data.len() {
+                return Err(Error::new(ErrorKind::UnexpectedEof, "short descriptor write"));
+            }
+
+            log::debug!("writing functionfs strings to {}", ep0_path.display());
+            let strs_data = strs.to_bytes()?;
+            log::trace!("functionfs strings data: {strs_data:x?}");
+            if ep0.write(&strs_data)? != strs_data.len() {
+                return Err(Error::new(ErrorKind::UnexpectedEof, "short strings write"));
+            }
+
+            log::debug!("functionfs initialized");
+
+            // Open endpoint files.
+            let mut endpoint_num = 0;
+            let mut ep_files = Vec::new();
+            for intf in &self.builder.interfaces {
+                for ep in &intf.endpoints {
+                    endpoint_num += 1;
+
+                    let ep_path = ffs_dir.join(format!("ep{endpoint_num}"));
+                    let (ep_io, ep_file) = EndpointIo::new(ep_path, ep.direction.queue_len)?;
+                    ep.direction.tx.send(ep_io).unwrap();
+                    ep_files.push(ep_file);
+                }
+            }
+
+            // Provide endpoint 0 file.
+            let ep0 = Arc::new(ep0);
+            self.ep0_tx.send(Arc::downgrade(&ep0)).unwrap();
+            ep_files.push(ep0);
+
+            *self.ep_files.lock().unwrap() = ep_files;
+        }
+
+        self.ffs_dir_tx.send(ffs_dir).unwrap();
+
+        Ok(())
+    }
+
+    /// Close all device files.
+    fn close(&self) {
+        self.ep_files.lock().unwrap().clear();
     }
 }
 
@@ -676,87 +823,112 @@ impl Function for CustomFunction {
     }
 
     fn register(&self) -> Result<()> {
-        let dev_dir = self.dev_dir()?;
-        let ep0_path = dev_dir.join("ep0");
+        if self.builder.ffs_no_mount {
+            return Ok(());
+        }
 
-        let (descs, strs) = self.builder.ffs_descs()?;
-        log::trace!("functionfs descriptors: {descs:x?}");
-        log::trace!("functionfs strings: {strs:?}");
-
-        log::debug!("creating functionfs directory {}", dev_dir.display());
-        match fs::create_dir(&dev_dir) {
-            Ok(()) => (),
+        let ffs_dir = self.ffs_dir()?;
+        log::debug!("creating functionfs directory {}", ffs_dir.display());
+        match fs::create_dir(&ffs_dir) {
+            Ok(()) => self.ffs_dir_created.store(true, Ordering::SeqCst),
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             Err(err) => return Err(err),
         }
 
-        log::debug!("mounting functionfs into {}", dev_dir.display());
-        ffs::mount(&self.dir.instance()?, &dev_dir)?;
+        let mount_opts = ffs::MountOptions {
+            no_disconnect: self.builder.ffs_no_disconnect,
+            rmode: self.builder.ffs_root_mode,
+            fmode: self.builder.ffs_file_mode,
+            mode: None,
+            uid: self.builder.ffs_uid,
+            gid: self.builder.ffs_gid,
+        };
+        log::debug!("mounting functionfs into {} using options {mount_opts:?}", ffs_dir.display());
+        ffs::mount(&self.dir.instance()?, &ffs_dir, &mount_opts)?;
 
-        let mut ep0 = File::options().read(true).write(true).open(&ep0_path)?;
-
-        log::debug!("writing functionfs descriptors to {}", ep0_path.display());
-        let descs_data = descs.to_bytes()?;
-        log::trace!("functionfs descriptor data: {descs_data:x?}");
-        if ep0.write(&descs_data)? != descs_data.len() {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "short descriptor write"));
-        }
-
-        log::debug!("writing functionfs strings to {}", ep0_path.display());
-        let strs_data = strs.to_bytes()?;
-        log::trace!("functionfs strings data: {strs_data:x?}");
-        if ep0.write(&strs_data)? != strs_data.len() {
-            return Err(Error::new(ErrorKind::UnexpectedEof, "short strings write"));
-        }
-
-        log::debug!("functionfs initialized");
-
-        // Open endpoint files.
-        let mut endpoint_num = 0;
-        let mut ep_files = Vec::new();
-        for intf in &self.builder.interfaces {
-            for ep in &intf.endpoints {
-                endpoint_num += 1;
-
-                let ep_path = dev_dir.join(format!("ep{endpoint_num}"));
-                let (ep_io, ep_file) = EndpointIo::new(ep_path, ep.direction.queue_len)?;
-                ep.direction.tx.send(ep_io).unwrap();
-                ep_files.push(ep_file);
-            }
-        }
-
-        // Provide endpoint 0 file.
-        let ep0 = Arc::new(ep0);
-        self.ep0_tx.send(Arc::downgrade(&ep0)).unwrap();
-        ep_files.push(ep0);
-
-        *self.ep_files.lock().unwrap() = ep_files;
-
-        Ok(())
+        self.init()
     }
 
     fn pre_removal(&self) -> Result<()> {
-        self.ep_files.lock().unwrap().clear();
+        self.close();
+        Ok(())
+    }
+
+    fn post_removal(&self, _dir: &Path) -> Result<()> {
+        if self.ffs_dir_created.load(Ordering::SeqCst) {
+            if let Ok(ffs_dir) = self.ffs_dir() {
+                let _ = fs::remove_dir(ffs_dir);
+            }
+        }
         Ok(())
     }
 }
 
+pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
+    let (_driver, instance) =
+        split_function_dir(&dir).ok_or_else(|| Error::new(ErrorKind::InvalidInput, "invalid configfs dir"))?;
+
+    for mount in MountIter::new()? {
+        let Ok(mount) = mount else { continue };
+
+        if mount.fstype == ffs::FS_TYPE && mount.source == instance {
+            log::debug!("unmounting functionfs {} from {}", instance.to_string_lossy(), mount.dest.display());
+            if let Err(err) = ffs::umount(&mount.dest, false) {
+                log::debug!("unmount failed, trying lazy unmount: {err}");
+                ffs::umount(&mount.dest, true)?;
+            }
+
+            if mount.dest == default_ffs_dir(instance) {
+                let _ = fs::remove_dir(&mount.dest);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Custom USB interface, implemented in user code.
+///
+/// Dropping this causes all endpoint files to be closed.
+/// However, the FunctionFS instance stays mounted until the USB gadget is unregistered.
 #[derive(Debug)]
 pub struct Custom {
     dir: FunctionDir,
     ep0: value::Receiver<Weak<File>>,
     setup_event: Option<Direction>,
+    ep_files: Arc<Mutex<Vec<Arc<File>>>>,
+    existing_ffs: bool,
+    ffs_dir: value::Receiver<PathBuf>,
 }
 
 impl Custom {
     /// Creates a new USB custom function builder.
     pub fn builder() -> CustomBuilder {
-        CustomBuilder { interfaces: Vec::new(), all_ctrl_recipient: false, config0_setup: false }
+        CustomBuilder {
+            interfaces: Vec::new(),
+            all_ctrl_recipient: false,
+            config0_setup: false,
+            ffs_dir: None,
+            ffs_root_mode: None,
+            ffs_file_mode: None,
+            ffs_uid: None,
+            ffs_gid: None,
+            ffs_no_disconnect: false,
+            ffs_no_init: false,
+            ffs_no_mount: false,
+        }
     }
 
     /// Access to registration status.
+    ///
+    /// The registration status is not valid when [`CustomBuilder::existing`] has been
+    /// used to create this object.
+    ///
+    /// ## Panics
+    /// Panics if [`CustomBuilder::existing`] has been used to create this object.
     pub fn status(&self) -> Status {
+        assert!(!self.existing_ffs, "registration status is invalid for use with existing FunctionFS instances");
+
         self.dir.status()
     }
 
@@ -868,6 +1040,17 @@ impl Custom {
     pub fn fd(&mut self) -> Result<RawFd> {
         let ep0 = self.ep0()?;
         Ok(ep0.as_raw_fd())
+    }
+
+    /// FunctionFS directory.
+    pub fn ffs_dir(&mut self) -> Result<PathBuf> {
+        Ok(self.ffs_dir.get()?.clone())
+    }
+}
+
+impl Drop for Custom {
+    fn drop(&mut self) {
+        self.ep_files.lock().unwrap().clear();
     }
 }
 
@@ -1058,29 +1241,6 @@ impl<'a> Drop for CtrlReceiver<'a> {
             let _ = self.do_halt();
         }
     }
-}
-
-pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
-    let (_driver, instance) =
-        split_function_dir(&dir).ok_or_else(|| Error::new(ErrorKind::InvalidInput, "invalid configfs dir"))?;
-
-    for mount in MountIter::new()? {
-        let Ok(mount) = mount else { continue };
-
-        if mount.fstype == ffs::FS_TYPE && mount.source == instance {
-            log::debug!("unmounting functionfs {} from {}", instance.to_string_lossy(), mount.dest.display());
-            if let Err(err) = ffs::umount(&mount.dest, false) {
-                log::debug!("unmount failed, trying lazy unmount: {err}");
-                ffs::umount(&mount.dest, true)?;
-            }
-
-            if mount.dest == dev_dir(instance) {
-                let _ = fs::remove_dir(&mount.dest);
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Endpoint IO access.
