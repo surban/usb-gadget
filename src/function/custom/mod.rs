@@ -2,6 +2,7 @@
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_FS` must be enabled.
 
+use bytes::{Bytes, BytesMut};
 use nix::poll::{poll, PollFd, PollFlags};
 use proc_mounts::MountIter;
 use std::{
@@ -1225,7 +1226,7 @@ impl EndpointSender {
     /// Send data synchronously.
     ///
     /// Blocks until the send operation completes and returns its result.
-    pub fn send_and_flush(&mut self, data: Vec<u8>) -> Result<()> {
+    pub fn send_and_flush(&mut self, data: Bytes) -> Result<()> {
         self.send(data)?;
         self.flush()
     }
@@ -1233,7 +1234,7 @@ impl EndpointSender {
     /// Send data synchronously with a timeout.
     ///
     /// Blocks until the send operation completes and returns its result.
-    pub fn send_and_flush_timeout(&mut self, data: Vec<u8>, timeout: Duration) -> Result<()> {
+    pub fn send_and_flush_timeout(&mut self, data: Bytes, timeout: Duration) -> Result<()> {
         self.send(data)?;
 
         let res = self.flush_timeout(timeout);
@@ -1247,7 +1248,7 @@ impl EndpointSender {
     ///
     /// Blocks until send space is available.
     /// Also returns errors of previously enqueued send operations.
-    pub fn send(&mut self, data: Vec<u8>) -> Result<()> {
+    pub fn send(&mut self, data: Bytes) -> Result<()> {
         self.ready()?;
         self.try_send(data)
     }
@@ -1257,7 +1258,7 @@ impl EndpointSender {
     /// Waits until send space is available.
     /// Also returns errors of previously enqueued send operations.
     #[cfg(feature = "tokio")]
-    pub async fn send_async(&mut self, data: Vec<u8>) -> Result<()> {
+    pub async fn send_async(&mut self, data: Bytes) -> Result<()> {
         self.wait_ready().await?;
         self.try_send(data)
     }
@@ -1266,7 +1267,7 @@ impl EndpointSender {
     ///
     /// Blocks until send space is available with the specified timeout.
     /// Also returns errors of previously enqueued send operations.
-    pub fn send_timeout(&mut self, data: Vec<u8>, timeout: Duration) -> Result<()> {
+    pub fn send_timeout(&mut self, data: Bytes, timeout: Duration) -> Result<()> {
         self.ready_timeout(timeout)?;
         self.try_send(data)
     }
@@ -1275,12 +1276,12 @@ impl EndpointSender {
     ///
     /// Fails if no send space is available.
     /// Also returns errors of previously enqueued send operations.
-    pub fn try_send(&mut self, data: Vec<u8>) -> Result<()> {
+    pub fn try_send(&mut self, data: Bytes) -> Result<()> {
         self.try_ready()?;
 
         let io = self.0.get()?;
         let file = io.file()?;
-        io.aio.submit(aio::opcode::PWRITE, file.as_raw_fd(), aio::Buffer::new(data))?;
+        io.aio.submit(aio::opcode::PWRITE, file.as_raw_fd(), data)?;
         Ok(())
     }
 
@@ -1435,16 +1436,16 @@ impl EndpointReceiver {
     /// Receive data synchronously.
     ///
     /// Blocks until the operation completes and returns its result.
-    pub fn recv_and_fetch(&mut self, len: usize) -> Result<Vec<u8>> {
-        self.try_recv(len)?;
+    pub fn recv_and_fetch(&mut self, buf: BytesMut) -> Result<BytesMut> {
+        self.try_recv(buf)?;
         Ok(self.fetch()?.unwrap())
     }
 
     /// Receive data synchronously with a timeout.
     ///
     /// Blocks until the operation completes and returns its result.
-    pub fn recv_and_fetch_timeout(&mut self, len: usize, timeout: Duration) -> Result<Vec<u8>> {
-        self.try_recv(len)?;
+    pub fn recv_and_fetch_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<BytesMut> {
+        self.try_recv(buf)?;
 
         let res = self.fetch_timeout(timeout);
         match res {
@@ -1458,44 +1459,44 @@ impl EndpointReceiver {
 
     /// Receive data.
     ///
-    /// Waits for space in the receive queue and enqueues a buffer for receiving data.
+    /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
-    pub fn recv(&mut self, len: usize) -> Result<Option<Vec<u8>>> {
+    pub fn recv(&mut self, buf: BytesMut) -> Result<Option<BytesMut>> {
         let data = if self.is_ready() { self.try_fetch()? } else { self.fetch()? };
-        self.try_recv(len)?;
+        self.try_recv(buf)?;
         Ok(data)
     }
 
     /// Asynchronously receive data.
     ///
-    /// Waits for space in the receive queue and enqueues a buffer for receiving data.
+    /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
     #[cfg(feature = "tokio")]
-    pub async fn recv_async(&mut self, len: usize) -> Result<Option<Vec<u8>>> {
+    pub async fn recv_async(&mut self, buf: BytesMut) -> Result<Option<BytesMut>> {
         let data = if self.is_ready() { self.try_fetch()? } else { self.fetch_async().await? };
-        self.try_recv(len)?;
+        self.try_recv(buf)?;
         Ok(data)
     }
 
     /// Receive data with a timeout.
     ///
-    /// Waits for space in the receive queue and enqueues a buffer for receiving data.
+    /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
-    pub fn recv_timeout(&mut self, len: usize, timeout: Duration) -> Result<Option<Vec<u8>>> {
+    pub fn recv_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<Option<BytesMut>> {
         let data = if self.is_ready() { self.try_fetch()? } else { self.fetch_timeout(timeout)? };
         if self.is_ready() {
-            self.try_recv(len)?;
+            self.try_recv(buf)?;
         }
         Ok(data)
     }
 
-    /// Enqueue a buffer for receiving without waiting for receive queue space.
+    /// Enqueue the buffer for receiving without waiting for receive queue space.
     ///
     /// Fails if no receive queue space is available.
-    pub fn try_recv(&mut self, len: usize) -> Result<()> {
+    pub fn try_recv(&mut self, buf: BytesMut) -> Result<()> {
         let io = self.0.get()?;
         let file = io.file()?;
-        io.aio.submit(aio::opcode::PREAD, file.as_raw_fd(), aio::Buffer::uninit(len))?;
+        io.aio.submit(aio::opcode::PREAD, file.as_raw_fd(), buf)?;
         Ok(())
     }
 
@@ -1520,54 +1521,54 @@ impl EndpointReceiver {
     /// Waits for data to be received into a previously enqueued receive buffer, then returns it.
     ///
     /// `Ok(None)` is returned if no receive buffers are enqueued.
-    pub fn fetch(&mut self) -> Result<Option<Vec<u8>>> {
+    pub fn fetch(&mut self) -> Result<Option<BytesMut>> {
         let io = self.0.get()?;
 
         let Some(comp) = io.aio.completed() else {
             return Ok(None);
         };
 
-        Ok(Some(comp.result()?))
+        Ok(Some(comp.result()?.try_into().unwrap()))
     }
 
     /// Asynchronously waits for data to be received into a previously enqueued receive buffer, then returns it.
     ///
     /// `Ok(None)` is returned if no receive buffers are enqueued.
     #[cfg(feature = "tokio")]
-    pub async fn fetch_async(&mut self) -> Result<Option<Vec<u8>>> {
+    pub async fn fetch_async(&mut self) -> Result<Option<BytesMut>> {
         let io = self.0.get()?;
 
         let Some(comp) = io.aio.wait_completed().await else {
             return Ok(None);
         };
 
-        Ok(Some(comp.result()?))
+        Ok(Some(comp.result()?.try_into().unwrap()))
     }
 
     /// Waits for data to be received into a previously enqueued receive buffer with a timeout,
     /// then returns it.
     ///
     /// `Ok(None)` is returned if no receive buffers are enqueued.
-    pub fn fetch_timeout(&mut self, timeout: Duration) -> Result<Option<Vec<u8>>> {
+    pub fn fetch_timeout(&mut self, timeout: Duration) -> Result<Option<BytesMut>> {
         let io = self.0.get()?;
 
         let Some(comp) = io.aio.completed_timeout(timeout) else {
             return Ok(None);
         };
 
-        Ok(Some(comp.result()?))
+        Ok(Some(comp.result()?.try_into().unwrap()))
     }
 
     /// If data has been received into a previously enqueued receive buffer, returns it.
     ///
     /// Does not wait for data to be received.
-    pub fn try_fetch(&mut self) -> Result<Option<Vec<u8>>> {
+    pub fn try_fetch(&mut self) -> Result<Option<BytesMut>> {
         let io = self.0.get()?;
 
         let Some(comp) = io.aio.try_completed() else { return Ok(None) };
         let data = comp.result()?;
 
-        Ok(Some(data))
+        Ok(Some(data.try_into().unwrap()))
     }
 
     /// Removes all buffers from the receive queue and clears all errors.

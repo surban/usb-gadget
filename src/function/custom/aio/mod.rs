@@ -1,5 +1,6 @@
 //! Linux AIO driver.
 
+use bytes::{Bytes, BytesMut};
 use nix::sys::eventfd::{eventfd, EfdFlags};
 use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},
@@ -89,76 +90,81 @@ impl Deref for Context {
 }
 
 /// Data buffer for AIO operation.
+#[derive(Debug)]
 pub enum Buffer {
     /// Initialized buffer for writing data.
-    Init(Vec<u8>),
-    /// Uninitialized buffer for reading data.
-    Uninit(Vec<MaybeUninit<u8>>),
+    Write(Bytes),
+    /// Possibly uninitialized buffer for reading data.
+    Read(BytesMut),
 }
 
 impl Buffer {
-    /// Create initialized buffer.
-    pub fn new(buf: Vec<u8>) -> Self {
-        Self::Init(buf)
-    }
-
-    /// Create new uninitialized buffer of given size.
-    pub fn uninit(len: usize) -> Self {
-        Self::Uninit(vec![MaybeUninit::uninit(); len])
-    }
-
-    /// Length of buffer.
-    pub fn len(&self) -> usize {
+    /// Length or capacity of buffer.
+    pub fn size(&self) -> usize {
         match self {
-            Self::Init(buf) => buf.len(),
-            Self::Uninit(buf) => buf.len(),
-        }
-    }
-
-    /// Whether buffer is empty.
-    #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Self::Init(buf) => buf.is_empty(),
-            Self::Uninit(buf) => buf.is_empty(),
+            Self::Write(buf) => buf.len(),
+            Self::Read(buf) => buf.capacity(),
         }
     }
 
     /// Get pointer to buffer.
-    fn as_mut_ptr(&mut self) -> *mut u8 {
+    ///
+    /// ## Safety
+    /// If this is a write buffer the pointer must only be read from.
+    unsafe fn as_mut_ptr(&mut self) -> *mut u8 {
         match self {
-            Self::Init(buf) => buf.as_mut_ptr(),
-            Self::Uninit(buf) => buf.as_mut_ptr() as *mut _,
+            Self::Write(buf) => buf.as_ptr() as *mut _,
+            Self::Read(buf) => buf.as_mut_ptr(),
         }
     }
 
     /// Assume buffer is initialized to given length.
-    unsafe fn assume_init(self, len: usize) -> Vec<u8> {
+    unsafe fn assume_init(&mut self, len: usize) {
         match self {
-            Self::Init(buf) => buf,
-            Self::Uninit(mut buf) => {
-                buf.truncate(len);
-                mem::transmute(buf)
-            }
+            Self::Write(_) => (),
+            Self::Read(buf) => buf.set_len(len),
         }
     }
 }
 
-impl From<Vec<u8>> for Buffer {
-    fn from(buf: Vec<u8>) -> Self {
-        Self::Init(buf)
+impl From<Bytes> for Buffer {
+    fn from(buf: Bytes) -> Self {
+        Self::Write(buf)
     }
 }
 
-impl From<Vec<MaybeUninit<u8>>> for Buffer {
-    fn from(buf: Vec<MaybeUninit<u8>>) -> Self {
-        Self::Uninit(buf)
+impl From<BytesMut> for Buffer {
+    fn from(buf: BytesMut) -> Self {
+        Self::Read(buf)
+    }
+}
+
+impl From<Buffer> for Bytes {
+    fn from(buf: Buffer) -> Self {
+        match buf {
+            Buffer::Write(buf) => buf,
+            Buffer::Read(buf) => buf.freeze(),
+        }
+    }
+}
+
+/// Buffer is not a read buffer.
+#[derive(Debug, Clone)]
+pub struct NotAReadBuffer;
+
+impl TryFrom<Buffer> for BytesMut {
+    type Error = NotAReadBuffer;
+    fn try_from(buf: Buffer) -> std::result::Result<Self, NotAReadBuffer> {
+        match buf {
+            Buffer::Write(_) => Err(NotAReadBuffer),
+            Buffer::Read(buf) => Ok(buf),
+        }
     }
 }
 
 impl Default for Buffer {
     fn default() -> Self {
-        Self::Init(Vec::new())
+        Self::Write(Bytes::new())
     }
 }
 
@@ -183,11 +189,12 @@ impl Op {
     }
 
     /// Given received AIO event convert operation to result.
-    fn complete(self, event: sys::IoEvent) -> CompletedOp {
+    fn complete(mut self, event: sys::IoEvent) -> CompletedOp {
         assert_eq!(event.data, self.iocb.data);
 
         let result = if event.res >= 0 {
-            Ok(unsafe { self.buf.assume_init(event.res.try_into().unwrap()) })
+            unsafe { self.buf.assume_init(event.res.try_into().unwrap()) };
+            Ok(self.buf)
         } else {
             Err(Error::from_raw_os_error(-i32::try_from(event.res).unwrap()))
         };
@@ -213,7 +220,7 @@ pub struct CompletedOp {
     id: u64,
     res: i64,
     res2: i64,
-    result: Result<Vec<u8>>,
+    result: Result<Buffer>,
 }
 
 impl CompletedOp {
@@ -224,7 +231,7 @@ impl CompletedOp {
     }
 
     /// Retrieve result.
-    pub fn result(self) -> Result<Vec<u8>> {
+    pub fn result(self) -> Result<Buffer> {
         self.result
     }
 
@@ -337,9 +344,10 @@ impl Driver {
         self.next_id = self.next_id.wrapping_add(1);
 
         let mut buf = buf.into();
-        let iocb = sys::IoCb::new(opcode, file.as_raw_fd(), buf.as_mut_ptr(), buf.len().try_into().unwrap())
-            .with_resfd(self.eventfd.as_raw_fd())
-            .with_data(id);
+        let iocb =
+            sys::IoCb::new(opcode, file.as_raw_fd(), unsafe { buf.as_mut_ptr() }, buf.size().try_into().unwrap())
+                .with_resfd(self.eventfd.as_raw_fd())
+                .with_data(id);
 
         let mut op = Op { iocb: Box::pin(iocb), buf };
         let iocb_ptr = op.iocb_ptr();

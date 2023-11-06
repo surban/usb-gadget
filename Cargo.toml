@@ -14,22 +14,23 @@ edition = "2021"
 default = []
 
 [dependencies]
-tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
-proc-mounts = "0.3"
-strum = { version = "0.25", features = ["derive"] }
-macaddr = "1.0"
-nix = { version = "0.27", features = ["mount", "event", "ioctl", "poll", "fs"] }
 bitflags = "2.4"
 byteorder = "1"
-log = "0.4"
+bytes = "1.4"
 libc = "0.2"
+log = "0.4"
+macaddr = "1.0"
+nix = { version = "0.27", features = ["mount", "event", "ioctl", "poll", "fs"] }
+proc-mounts = "0.3"
+strum = { version = "0.25", features = ["derive"] }
+tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
 uuid = "1"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "time"] }
-tempfile = "3"
-rusb = "0.9"
 env_logger = "0.10"
+rusb = "0.9"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "time"] }
 
 [[example]]
 name = "custom_interface_device_async"

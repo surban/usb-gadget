@@ -7,6 +7,7 @@ use std::{
     },
     time::Duration,
 };
+use bytes::BytesMut;
 
 use usb_gadget::{
     default_udc,
@@ -65,7 +66,7 @@ async fn main() {
         let size = ep1_rx.max_packet_size().unwrap();
         let mut b = 0;
         while !stop1.load(Ordering::Relaxed) {
-            let data = ep1_rx.recv_async(size).await.expect("recv_async failed");
+            let data = ep1_rx.recv_async(BytesMut::with_capacity(size)).await.expect("recv_async failed");
             match data {
                 Some(data) => {
                     println!("received {} bytes: {data:x?}", data.len());
@@ -87,7 +88,7 @@ async fn main() {
         let mut b = 0u8;
         while !stop2.load(Ordering::Relaxed) {
             let data = vec![b; size];
-            match ep2_tx.send_async(data).await {
+            match ep2_tx.send_async(data.into()).await {
                 Ok(()) => {
                     println!("sent data {b} of size {size} bytes");
                     b = b.wrapping_add(1);
