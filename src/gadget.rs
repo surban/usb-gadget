@@ -338,11 +338,11 @@ impl Gadget {
         self
     }
 
-    /// Bind USB gadget to a USB device controller (UDC).
+    /// Register the USB gadget.
     ///
     /// At least one [configuration](Config) must be added before the gadget
-    /// can be bound.
-    pub fn bind(&self, udc: &Udc) -> Result<RegGadget> {
+    /// can be registered.
+    pub fn register(self) -> Result<RegGadget> {
         if self.configs.is_empty() {
             return Err(Error::new(ErrorKind::InvalidInput, "USB gadget must have at least one configuration"));
         }
@@ -362,7 +362,7 @@ impl Gadget {
                 .ok_or_else(|| Error::new(ErrorKind::OutOfMemory, "USB gadgets exhausted"))?;
         };
 
-        log::debug!("creating gadget at {}", dir.display());
+        log::debug!("registering gadget at {}", dir.display());
 
         fs::write(dir.join("bDeviceClass"), hex_u8(self.device_class.class))?;
         fs::write(dir.join("bDeviceSubClass"), hex_u8(self.device_class.sub_class))?;
@@ -438,15 +438,18 @@ impl Gadget {
             }
         }
 
-        log::debug!("binding gadget to UDC {}", udc.name().to_string_lossy());
-        fs::write(dir.join("UDC"), udc.name().as_bytes())?;
-
-        for func in func_dirs.keys() {
-            func.get().dir().set_bound(true);
-        }
-
-        log::debug!("gadget at {} created", dir.display());
+        log::debug!("gadget at {} registered", dir.display());
         Ok(RegGadget { dir, attached: true, func_dirs })
+    }
+
+    /// Register and bind USB gadget to a USB device controller (UDC).
+    ///
+    /// At least one [configuration](Config) must be added before the gadget
+    /// can be bound.
+    pub fn bind(self, udc: &Udc) -> Result<RegGadget> {
+        let reg = self.register()?;
+        reg.bind(Some(udc))?;
+        Ok(reg)
     }
 }
 
@@ -465,7 +468,7 @@ pub struct RegGadget {
 
 impl fmt::Debug for RegGadget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("RegisteredGadget")
+        f.debug_struct("RegGadget")
             .field("name", &self.name())
             .field("is_attached", &self.is_attached())
             .finish()
