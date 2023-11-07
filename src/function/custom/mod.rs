@@ -1595,6 +1595,8 @@ impl EndpointReceiver {
 
     /// Receive data synchronously.
     ///
+    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    ///
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch(&mut self, buf: BytesMut) -> Result<BytesMut> {
         self.try_recv(buf)?;
@@ -1602,6 +1604,8 @@ impl EndpointReceiver {
     }
 
     /// Receive data synchronously with a timeout.
+    ///
+    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
     ///
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<BytesMut> {
@@ -1619,6 +1623,8 @@ impl EndpointReceiver {
 
     /// Receive data.
     ///
+    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
     pub fn recv(&mut self, buf: BytesMut) -> Result<Option<BytesMut>> {
@@ -1628,6 +1634,8 @@ impl EndpointReceiver {
     }
 
     /// Asynchronously receive data.
+    ///
+    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1640,6 +1648,8 @@ impl EndpointReceiver {
 
     /// Receive data with a timeout.
     ///
+    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
     pub fn recv_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<Option<BytesMut>> {
@@ -1651,6 +1661,8 @@ impl EndpointReceiver {
     }
 
     /// Enqueue the buffer for receiving without waiting for receive queue space.
+    ///
+    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
     ///
     /// Fails if no receive queue space is available.
     pub fn try_recv(&mut self, buf: BytesMut) -> Result<()> {
