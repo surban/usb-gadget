@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.5.0 - 2023-11-07
+### Added
+- custom interface: support usage with external USB gadget
+  registration and pre-mounted FunctionFS
+- custom interface: allow specification of FunctionFS
+  mount options and skip of interface initialization
+- allow gadget registration without binding
+### Changed
+- custom interface: switch to Bytes-based buffers
+
+
 ## 0.4.1 - 2023-11-01
 ### Added
 - examples
