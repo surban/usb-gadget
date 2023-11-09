@@ -50,6 +50,13 @@ impl Class {
     pub const fn vendor_specific(sub_class: u8, protocol: u8) -> Self {
         Self::new(Self::VENDOR_SPECIFIC, sub_class, protocol)
     }
+
+    /// Indicates that class information should be determined from the interface descriptors in the device.
+    /// 
+    /// Can only be used as device class.
+    pub const fn interface_specific() -> Self {
+        Self::new(0, 0, 0)
+    }
 }
 
 /// USB gadget id.
@@ -468,10 +475,7 @@ pub struct RegGadget {
 
 impl fmt::Debug for RegGadget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("RegGadget")
-            .field("name", &self.name())
-            .field("is_attached", &self.is_attached())
-            .finish()
+        f.debug_struct("RegGadget").field("name", &self.name()).field("is_attached", &self.is_attached()).finish()
     }
 }
 
