@@ -52,7 +52,7 @@ impl Class {
     }
 
     /// Indicates that class information should be determined from the interface descriptors in the device.
-    /// 
+    ///
     /// Can only be used as device class.
     pub const fn interface_specific() -> Self {
         Self::new(0, 0, 0)
