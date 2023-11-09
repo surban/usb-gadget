@@ -5,9 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.5.2 - 2023-11-09
+### Changed
+- use old value for bcdVersion of OS descriptors for compatibility
+  with older Linux kernels
+
+
 ## 0.5.1 - 2023-11-09
 ### Added
 - interface-specific device class
+
 
 ## 0.5.0 - 2023-11-07
 ### Added
