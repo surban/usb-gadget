@@ -331,6 +331,13 @@ impl InterfaceAssocDesc {
     }
 }
 
+/// bcdVersion of OS descriptor.
+///
+/// This should actually be 0x0100, but due to a bug in older kernels they only accept
+/// 0x0001 as a valid value. Fixed kernels accepts both values. For the sake of
+/// compatibility keep the old, incorrect value.
+const OS_DESC_BCD_VERSION: u16 = 0x0001;
+
 #[derive(Clone, Debug)]
 pub struct OsDesc {
     pub interface: u8,
@@ -361,7 +368,7 @@ impl OsDescExt {
     fn write(&self, data: &mut Vec<u8>) -> Result<()> {
         match self {
             Self::ExtCompat(compats) => {
-                data.write_u16::<LE>(0x0100)?; // bcdVersion
+                data.write_u16::<LE>(OS_DESC_BCD_VERSION)?; // bcdVersion
                 data.write_u16::<LE>(4)?; // wIndex
                 data.write_u8(compats.len().try_into()?)?;
                 data.write_u8(0)?;
@@ -371,7 +378,7 @@ impl OsDescExt {
                 }
             }
             Self::ExtProp(props) => {
-                data.write_u16::<LE>(0x0100)?; // bcdVersion
+                data.write_u16::<LE>(OS_DESC_BCD_VERSION)?; // bcdVersion
                 data.write_u16::<LE>(5)?; // wIndex
                 data.write_u16::<LE>(props.len().try_into()?)?;
 
