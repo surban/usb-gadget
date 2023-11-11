@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.6.0 - 2023-11-11
+### Changed
+- custom interface: make status() return an Option<_> 
+
+
 ## 0.5.2 - 2023-11-09
 ### Changed
 - use old value for bcdVersion of OS descriptors for compatibility
