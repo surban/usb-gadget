@@ -921,15 +921,14 @@ impl Custom {
 
     /// Access to registration status.
     ///
-    /// The registration status is not valid when [`CustomBuilder::existing`] has been
+    /// The registration status is not available when [`CustomBuilder::existing`] has been
     /// used to create this object.
-    ///
-    /// ## Panics
-    /// Panics if [`CustomBuilder::existing`] has been used to create this object.
-    pub fn status(&self) -> Status {
-        assert!(!self.existing_ffs, "registration status is invalid for use with existing FunctionFS instances");
-
-        self.dir.status()
+    pub fn status(&self) -> Option<Status> {
+        if !self.existing_ffs {
+            Some(self.dir.status())
+        } else {
+            None
+        }
     }
 
     fn ep0(&mut self) -> Result<Arc<File>> {

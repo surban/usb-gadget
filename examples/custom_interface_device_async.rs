@@ -44,7 +44,7 @@ async fn main() {
     .bind(&udc)
     .expect("cannot bind to UDC");
 
-    println!("Custom function at {}", custom.status().path().unwrap().display());
+    println!("Custom function at {}", custom.status().unwrap().path().unwrap().display());
     println!();
 
     let ep1_control = ep1_rx.control().unwrap();

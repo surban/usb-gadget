@@ -27,7 +27,7 @@ fn custom() {
         .build();
 
     let reg = reg(handle);
-    println!("Custom function at {}", custom.status().path().unwrap().display());
+    println!("Custom function at {}", custom.status().unwrap().path().unwrap().display());
     println!();
 
     println!("Getting ep1_rx control");
@@ -40,7 +40,7 @@ fn custom() {
 
     println!("Unregistering");
     if unreg(reg).unwrap() {
-        assert!(custom.status().path().is_none());
+        assert!(custom.status().unwrap().path().is_none());
     }
 }
 
@@ -65,7 +65,7 @@ fn custom_with_os_desc() {
         .build();
 
     let reg = reg_with_os_desc(handle);
-    println!("Custom function at {}", custom.status().path().unwrap().display());
+    println!("Custom function at {}", custom.status().unwrap().path().unwrap().display());
     println!("real interface address 0: {}", custom.real_address(0).unwrap());
     println!();
 
@@ -85,7 +85,7 @@ fn custom_with_os_desc() {
 
     println!("Unregistering");
     if unreg(reg).unwrap() {
-        assert!(custom.status().path().is_none());
+        assert!(custom.status().unwrap().path().is_none());
     }
 }
 
@@ -110,7 +110,7 @@ fn custom_no_disconnect() {
         let (mut custom, handle) = builder.build();
 
         let reg = reg(handle);
-        println!("Custom function at {}", custom.status().path().unwrap().display());
+        println!("Custom function at {}", custom.status().unwrap().path().unwrap().display());
         println!();
 
         let ffs_dir = custom.ffs_dir().unwrap();
@@ -176,7 +176,7 @@ fn custom_ext_init() {
         let (mut custom, handle) = builder.build();
 
         let reg = reg_no_bind(handle);
-        println!("Custom function at {}", custom.status().path().unwrap().display());
+        println!("Custom function at {}", custom.status().unwrap().path().unwrap().display());
         println!();
 
         let ffs_dir = custom.ffs_dir().unwrap();
@@ -207,6 +207,7 @@ fn custom_ext_init() {
             .unwrap();
 
         assert_eq!(ffs_dir, custom.ffs_dir().unwrap());
+        assert!(custom.status().is_none());
 
         println!("Getting ep1_rx control");
         let _ep1_control = ep1_rx.control().unwrap();
