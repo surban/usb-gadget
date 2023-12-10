@@ -82,7 +82,7 @@ impl Hid {
     }
 
     /// Device major and minor numbers.
-    pub fn device(&self) -> Result<(u8, u8)> {
+    pub fn device(&self) -> Result<(u32, u32)> {
         let dev = self.dir.read_string("dev")?;
         let Some((major, minor)) = dev.split_once(':') else {
             return Err(Error::new(ErrorKind::InvalidData, "invalid device number format"));
