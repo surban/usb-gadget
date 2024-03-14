@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.7.0 - 2024-03-13
+### Fixed
+- device number data types
+
+
 ## 0.6.0 - 2023-11-11
 ### Changed
 - custom interface: make status() return an Option<_> 
