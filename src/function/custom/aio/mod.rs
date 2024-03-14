@@ -1,14 +1,14 @@
 //! Linux AIO driver.
 
 use bytes::{Bytes, BytesMut};
-use nix::sys::eventfd::{eventfd, EfdFlags};
+use nix::sys::eventfd::{self, EfdFlags};
 use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},
     fmt,
     io::{Error, ErrorKind, Result},
     mem::{self, MaybeUninit},
     ops::Deref,
-    os::fd::{AsRawFd, OwnedFd, RawFd},
+    os::fd::{AsRawFd, RawFd},
     pin::Pin,
     ptr,
     sync::{mpsc, mpsc::TryRecvError, Arc},
@@ -22,13 +22,13 @@ pub use sys::opcode;
 
 /// eventfd provided by kernel.
 #[derive(Debug, Clone)]
-struct EventFd(Arc<OwnedFd>);
+struct EventFd(Arc<eventfd::EventFd>);
 
 impl EventFd {
     /// Create new eventfd with initial value and semaphore characteristics, if requested.
     pub fn new(initval: u32, semaphore: bool) -> Result<Self> {
         let flags = if semaphore { EfdFlags::EFD_SEMAPHORE } else { EfdFlags::empty() };
-        let fd = eventfd(initval, flags)?;
+        let fd = eventfd::EventFd::from_value_and_flags(initval, flags)?;
         Ok(Self(Arc::new(fd)))
     }
 

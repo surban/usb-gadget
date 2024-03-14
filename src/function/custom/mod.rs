@@ -3,7 +3,7 @@
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_FS` must be enabled.
 
 use bytes::{Bytes, BytesMut};
-use nix::poll::{poll, PollFd, PollFlags};
+use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 use proc_mounts::MountIter;
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
@@ -12,7 +12,7 @@ use std::{
     fs::File,
     hash::Hash,
     io::{Error, ErrorKind, Read, Result, Write},
-    os::fd::{AsRawFd, RawFd},
+    os::fd::{AsFd, AsRawFd, RawFd},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -978,15 +978,14 @@ impl Custom {
     fn wait_event_sync(&mut self, timeout: Option<Duration>) -> Result<bool> {
         let ep0 = self.ep0()?;
 
-        let mut fds = [PollFd::new(&ep0, PollFlags::POLLIN)];
-        poll(&mut fds, timeout.map(|d| d.as_millis().try_into().unwrap()).unwrap_or(-1))?;
+        let mut fds = [PollFd::new(ep0.as_fd(), PollFlags::POLLIN)];
+        poll(&mut fds, timeout.map(|d| d.as_millis().try_into().unwrap()).unwrap_or(PollTimeout::NONE))?;
         Ok(fds[0].revents().map(|e| e.contains(PollFlags::POLLIN)).unwrap_or_default())
     }
 
     /// Asynchronously wait for an event to be available.
     #[cfg(feature = "tokio")]
     pub async fn wait_event(&mut self) -> Result<()> {
-        use std::os::fd::AsFd;
         use tokio::io::{unix::AsyncFd, Interest};
 
         let ep0 = self.ep0()?;
