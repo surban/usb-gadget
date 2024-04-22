@@ -45,6 +45,7 @@ fn custom() {
 }
 
 #[test]
+#[ignore = "test requires a USB connection to a USB host"]
 fn custom_with_os_desc() {
     init();
     let _mutex = exclusive();
