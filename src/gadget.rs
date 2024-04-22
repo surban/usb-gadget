@@ -166,8 +166,8 @@ impl WebUsb {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Config {
-    /// Maximum power in 2 mA units.
-    max_power: u8,
+    /// Maximum power in mA.
+    pub max_power: u16,
     /// Self powered?
     pub self_powered: bool,
     /// Remote wakeup?
@@ -182,7 +182,7 @@ impl Config {
     /// Creates a new USB gadget configuration.
     pub fn new(description: impl AsRef<str>) -> Self {
         Self {
-            max_power: (500u16 / 2) as u8,
+            max_power: 500,
             self_powered: false,
             remote_wakeup: false,
             description: [(Language::default(), description.as_ref().to_string())].into(),
@@ -191,12 +191,9 @@ impl Config {
     }
 
     /// Sets the maximum power in mA.
+    #[deprecated(since = "0.7.1", note = "use the field Config::max_power instead")]
     pub fn set_max_power_ma(&mut self, ma: u16) -> Result<()> {
-        if ma > 500 {
-            return Err(Error::new(ErrorKind::InvalidInput, "maximum power must not exceed 500 mA"));
-        }
-
-        self.max_power = (ma / 2) as u8;
+        self.max_power = ma;
         Ok(())
     }
 
@@ -228,7 +225,7 @@ impl Config {
         }
 
         fs::write(dir.join("bmAttributes"), hex_u8(attributes))?;
-        fs::write(dir.join("MaxPower"), format!("{}", self.max_power))?;
+        fs::write(dir.join("MaxPower"), self.max_power.to_string())?;
 
         for (&lang, desc) in &self.description {
             let lang_dir = dir.join("strings").join(hex_u16(lang.into()));
