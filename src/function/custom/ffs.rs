@@ -17,7 +17,7 @@ use std::{
     path::Path,
 };
 
-use crate::Language;
+use crate::{linux_version, Language};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -331,13 +331,6 @@ impl InterfaceAssocDesc {
     }
 }
 
-/// bcdVersion of OS descriptor.
-///
-/// This should actually be 0x0100, but due to a bug in older kernels they only accept
-/// 0x0001 as a valid value. Fixed kernels accepts both values. For the sake of
-/// compatibility keep the old, incorrect value.
-const OS_DESC_BCD_VERSION: u16 = 0x0001;
-
 #[derive(Clone, Debug)]
 pub struct OsDesc {
     pub interface: u8,
@@ -366,9 +359,11 @@ pub enum OsDescExt {
 
 impl OsDescExt {
     fn write(&self, data: &mut Vec<u8>) -> Result<()> {
+        let os_desc_bcd_version = if linux_version().unwrap_or_default() >= (6, 4) { 0x0100 } else { 0x0001 };
+
         match self {
             Self::ExtCompat(compats) => {
-                data.write_u16::<LE>(OS_DESC_BCD_VERSION)?; // bcdVersion
+                data.write_u16::<LE>(os_desc_bcd_version)?; // bcdVersion
                 data.write_u16::<LE>(4)?; // wIndex
                 data.write_u8(compats.len().try_into()?)?;
                 data.write_u8(0)?;
@@ -378,7 +373,7 @@ impl OsDescExt {
                 }
             }
             Self::ExtProp(props) => {
-                data.write_u16::<LE>(OS_DESC_BCD_VERSION)?; // bcdVersion
+                data.write_u16::<LE>(os_desc_bcd_version)?; // bcdVersion
                 data.write_u16::<LE>(5)?; // wIndex
                 data.write_u16::<LE>(props.len().try_into()?)?;
 

@@ -28,11 +28,12 @@ compile_error!("usb_gadget only supports Linux");
 
 use proc_mounts::MountIter;
 use std::{
-    ffi::OsStr,
+    ffi::{CStr, OsStr},
     io::{Error, ErrorKind, Result},
     os::unix::prelude::OsStrExt,
     path::PathBuf,
     process::Command,
+    sync::OnceLock,
 };
 
 pub mod function;
@@ -125,5 +126,55 @@ fn request_module(name: impl AsRef<OsStr>) -> Result<()> {
         Ok(out) if out.status.success() => Ok(()),
         Ok(_) => Err(Error::new(ErrorKind::Other, "modprobe failed")),
         Err(err) => Err(err),
+    }
+}
+
+/// Gets the Linux kernel version.
+fn linux_version() -> Option<(u16, u16)> {
+    static VERSION: OnceLock<Result<(u16, u16)>> = OnceLock::new();
+    let version = VERSION.get_or_init(|| {
+        let mut uts = libc::utsname {
+            sysname: [0; 65],
+            nodename: [0; 65],
+            release: [0; 65],
+            version: [0; 65],
+            machine: [0; 65],
+            domainname: [0; 65],
+        };
+
+        if unsafe { libc::uname(&mut uts) } == -1 {
+            return Err(Error::last_os_error());
+        }
+
+        let release = unsafe { CStr::from_ptr(uts.release.as_ptr() as *const _) }
+            .to_str()
+            .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid release string"))?;
+
+        let parts: Vec<&str> = release.split('.').collect();
+        if parts.len() < 2 {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid kernel version"));
+        }
+
+        let major = parts[0].parse().map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let minor = parts[1].parse().map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        Ok((major, minor))
+    });
+
+    match version {
+        Ok(version) => Some(*version),
+        Err(err) => {
+            log::warn!("failed to obtain Linux version: {err}");
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn linux_version() {
+        let (major, minor) = super::linux_version().expect("failed to get Linux version");
+        println!("Linux {major}.{minor}");
     }
 }
