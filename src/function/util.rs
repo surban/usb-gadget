@@ -256,9 +256,7 @@ pub fn split_function_dir(function_dir: &Path) -> Option<(&OsStr, &OsStr)> {
     let name = function_dir.file_name()?;
     let name = name.as_bytes();
 
-    let Some(dot) = name.iter().enumerate().find_map(|(i, c)| if *c == b'.' { Some(i) } else { None }) else {
-        return None;
-    };
+    let dot = name.iter().enumerate().find_map(|(i, c)| if *c == b'.' { Some(i) } else { None })?;
     let driver = &name[..dot];
     let instance = &name[dot + 1..];
 
