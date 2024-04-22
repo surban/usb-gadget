@@ -18,10 +18,9 @@ use std::{
 
 use usb_gadget::{
     default_udc,
-    function::custom::{Custom, Endpoint, EndpointDirection, Event, Interface},
+    function::custom::{Custom, Endpoint, EndpointDirection, EndpointReceiver, EndpointSender, Event, Interface},
     Class, Config, Gadget, Id, OsDescriptor, Strings, WebUsb,
 };
-use usb_gadget::function::custom::{EndpointReceiver, EndpointSender};
 
 fn main() {
     env_logger::init();
@@ -61,13 +60,11 @@ fn main() {
             Id::new(6, 0x11),
             Strings::new("manufacturer", "custom USB interface", "serial_number"),
         )
-            .with_config(Config::new("config").with_function(handle))
-            .with_os_descriptor(OsDescriptor::microsoft())
-            .with_web_usb(WebUsb::new(0xf1, "http://webusb.org"));
+        .with_config(Config::new("config").with_function(handle))
+        .with_os_descriptor(OsDescriptor::microsoft())
+        .with_web_usb(WebUsb::new(0xf1, "http://webusb.org"));
 
-        let reg = gadget
-            .register()
-            .expect("cannot register gadget");
+        let reg = gadget.register().expect("cannot register gadget");
 
         if register_only {
             let ffs_dir = custom.ffs_dir().unwrap();
