@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.7.2 - 2024-06-25
+### Changed
+- clarify meaning of BCD
+### Fixed
+- handle ordering
+
+
 ## 0.7.1 - 2024-04-22
 ### Fixed
 - maximum device current handling
