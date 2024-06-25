@@ -286,6 +286,8 @@ pub struct Gadget {
     /// Maximum endpoint 0 packet size.
     pub max_packet_size0: u8,
     /// Device release number in BCD format.
+    ///
+    /// No hexadecimal digit must exceed 9.
     pub device_release: u16,
     /// USB specification version.
     pub usb_version: UsbVersion,
