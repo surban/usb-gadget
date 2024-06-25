@@ -47,7 +47,7 @@ impl PartialOrd for Handle {
 
 impl Ord for Handle {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        Arc::as_ptr(&self.0).cmp(&Arc::as_ptr(&other.0))
+        Arc::as_ptr(&self.0).cast::<()>().cmp(&Arc::as_ptr(&other.0).cast::<()>())
     }
 }
 
