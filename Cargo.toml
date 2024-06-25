@@ -20,7 +20,7 @@ bytes = "1.4"
 libc = "0.2"
 log = "0.4"
 macaddr = "1.0"
-nix = { version = "0.28", features = ["mount", "event", "ioctl", "poll", "fs"] }
+nix = { version = "0.29", features = ["mount", "event", "ioctl", "poll", "fs"] }
 proc-mounts = "0.3"
 strum = { version = "0.26", features = ["derive"] }
 tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
