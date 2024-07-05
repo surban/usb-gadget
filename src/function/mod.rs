@@ -6,6 +6,7 @@ pub mod msd;
 pub mod net;
 pub mod other;
 pub mod serial;
+pub mod midi;
 pub mod util;
 
 use std::{cmp, hash, hash::Hash, sync::Arc};
