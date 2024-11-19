@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.7.3 - 2024-11-19
+### Added
+- custom descriptor support
+
+
 ## 0.7.2 - 2024-06-25
 ### Changed
 - clarify meaning of BCD
