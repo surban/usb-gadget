@@ -134,6 +134,7 @@ pub enum Desc {
     Endpoint(EndpointDesc),
     SsEndpointComp(SsEndpointComp),
     InterfaceAssoc(InterfaceAssocDesc),
+    Custom(CustomDesc),
 }
 
 impl From<InterfaceDesc> for Desc {
@@ -160,6 +161,12 @@ impl From<InterfaceAssocDesc> for Desc {
     }
 }
 
+impl From<CustomDesc> for Desc {
+    fn from(value: CustomDesc) -> Self {
+        Self::Custom(value)
+    }
+}
+
 impl Desc {
     fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut data = Vec::new();
@@ -171,6 +178,7 @@ impl Desc {
             Self::Endpoint(d) => d.write(&mut data)?,
             Self::SsEndpointComp(d) => d.write(&mut data)?,
             Self::InterfaceAssoc(d) => d.write(&mut data)?,
+            Self::Custom(d) => d.write(&mut data)?,
         }
 
         data[0] = data.len().try_into()?;
@@ -426,6 +434,33 @@ impl OsExtProp {
         assert_eq!(len as usize, 14 + self.name.len() + self.data.len(), "invalid OS descriptor length");
         data[0..4].copy_from_slice(&len.to_le_bytes());
         Ok(data)
+    }
+}
+
+/// Custom descriptor.
+///
+/// The raw descriptor published will be of the form:
+/// `[length, descriptor_type, data...]`
+#[derive(Clone, Debug)]
+pub struct CustomDesc {
+    /// Descriptor type.
+    pub descriptor_type: u8,
+    /// Custom data.
+    pub data: Vec<u8>,
+}
+
+impl CustomDesc {
+    /// Creates a new custom descriptor.
+    ///
+    /// The data must not include the length and descriptor type.
+    pub fn new(descriptor_type: u8, data: Vec<u8>) -> Self {
+        Self { descriptor_type, data }
+    }
+
+    fn write(&self, data: &mut Vec<u8>) -> Result<()> {
+        data.write_u8(self.descriptor_type)?;
+        data.write_all(&self.data)?;
+        Ok(())
     }
 }
 

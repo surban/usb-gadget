@@ -35,6 +35,8 @@ pub(crate) fn driver() -> &'static OsStr {
     OsStr::new("ffs")
 }
 
+pub use ffs::CustomDesc;
+
 /// An USB interface.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -51,6 +53,10 @@ pub struct Interface {
     pub os_ext_compat: Vec<OsExtCompat>,
     /// Microsoft extended properties.
     pub os_ext_props: Vec<OsExtProp>,
+    /// Custom descriptors.
+    ///
+    /// These are inserted directly after the interface descriptor.
+    pub custom_descs: Vec<CustomDesc>,
 }
 
 impl Interface {
@@ -63,6 +69,7 @@ impl Interface {
             association: None,
             os_ext_compat: Vec::new(),
             os_ext_props: Vec::new(),
+            custom_descs: Vec::new(),
         }
     }
 
@@ -91,6 +98,13 @@ impl Interface {
     #[must_use]
     pub fn with_os_ext_prop(mut self, os_ext_prop: OsExtProp) -> Self {
         self.os_ext_props.push(os_ext_prop);
+        self
+    }
+
+    /// Adds a custom descriptor after the interface descriptor.
+    #[must_use]
+    pub fn with_custom_desc(mut self, custom_desc: CustomDesc) -> Self {
+        self.custom_descs.push(custom_desc);
         self
     }
 }
@@ -618,6 +632,12 @@ impl CustomBuilder {
             fs_descrs.push(if_desc.clone().into());
             hs_descrs.push(if_desc.clone().into());
             ss_descrs.push(if_desc.clone().into());
+
+            for custom in &intf.custom_descs {
+                fs_descrs.push(custom.clone().into());
+                hs_descrs.push(custom.clone().into());
+                ss_descrs.push(custom.clone().into());
+            }
 
             for ep in &intf.endpoints {
                 endpoint_num += 1;
