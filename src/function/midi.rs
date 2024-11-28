@@ -1,6 +1,39 @@
 //! Musical Instrument Digital Interface (MIDI) function.
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_MIDI` must be enabled. Can use `amidi -l` once the gadget is configured to list the MIDI devices.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use usb_gadget::function::midi::Midi;
+//! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
+//!
+//! let mut builder = Midi::builder();
+//! // This must be an available sound device index - see docs on index for more information
+//! builder.index = 0;
+//! builder.id = "midi".to_string();
+//! builder.in_ports = 1;
+//! builder.out_ports = 1;
+//! let (midi, func) = builder.build();
+//!
+//! let udc = default_udc().expect("cannot get UDC");
+//! let reg =
+//!     // USB device descriptor base class 0, 0, 0: use Interface Descriptors
+//!     // Linux Foundation VID Gadget PID
+//!     Gadget::new(Class::new(0, 0, 0), Id::new(0x1d6b, 0x0104), Strings::new("Clippy Manufacturer", "Rust MIDI", "RUST0123456"))
+//!         .with_config(Config::new("MIDI Config 1").with_function(func))
+//!         .bind(&udc)
+//!         .expect("cannot bind to UDC");
+//!
+//! println!(
+//!     "USB MIDI {} at {} to {} status {:?}",
+//!     reg.name().to_string_lossy(),
+//!     reg.path().display(),
+//!     udc.name().to_string_lossy(),
+//!     midi.status()
+//! );
+//! ```
+
 
 use std::{ffi::OsString, io::Result};
 
