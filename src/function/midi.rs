@@ -1,11 +1,8 @@
 //! Musical Instrument Digital Interface (MIDI) function.
 //!
-//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_MIDI` must be enabled.
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_MIDI` must be enabled. Can use `amidi -l` once the gadget is configured to list the MIDI devices.
 
-use std::{
-    ffi::OsString,
-    io::{Error, ErrorKind, Result},
-};
+use std::{ffi::OsString, io::Result};
 
 use super::{
     util::{FunctionDir, Status},
@@ -24,7 +21,9 @@ pub struct MidiBuilder {
     pub in_ports: u8,
     /// Number of MIDI output ports
     pub out_ports: u8,
-    /// Index value for the USB MIDI adapter.
+    /// Sound device index for the MIDI adapter
+    ///
+    /// There must be a sound device available with this index. If the device fails to register and in dmesg one sees 'cannot find the slot for index $index (range 0-1), error: -16', then the index is not available. Most likely the index is already in use by the physical sound card. Try another index within range or unload the physical sound card driver. See [USB Gadget MIDI](https://linux-sunxi.org/USB_Gadget/MIDI).
     pub index: u8,
     /// USB read request queue length
     pub qlen: u8,
@@ -76,23 +75,11 @@ pub struct Midi {
 impl Midi {
     /// Creates a new USB musical instrument digital interface (MIDI) builder.
     pub fn builder() -> MidiBuilder {
-        MidiBuilder { buflen: 0, id: String::new(), in_ports: 0, out_ports: 0, index: 0, qlen: 0 }
+        MidiBuilder { buflen: 512, id: String::new(), in_ports: 1, out_ports: 1, index: 0, qlen: 32 }
     }
 
     /// Access to registration status.
     pub fn status(&self) -> Status {
         self.dir.status()
-    }
-
-    /// Device major and minor numbers.
-    pub fn device(&self) -> Result<(u32, u32)> {
-        let dev = self.dir.read_string("dev")?;
-        let Some((major, minor)) = dev.split_once(':') else {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid device number format"));
-        };
-        let major = major.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
-        let minor = minor.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
-
-        Ok((major, minor))
     }
 }
