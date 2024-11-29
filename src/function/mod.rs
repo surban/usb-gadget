@@ -2,6 +2,7 @@
 
 pub mod custom;
 pub mod hid;
+pub mod midi;
 pub mod msd;
 pub mod net;
 pub mod other;
