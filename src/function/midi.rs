@@ -1,6 +1,7 @@
 //! Musical Instrument Digital Interface (MIDI) function.
 //!
-//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_MIDI` must be enabled. Can use `amidi -l` once the gadget is configured to list the MIDI devices.
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_MIDI` must be enabled.
+//! Can use `amidi -l` once the gadget is configured to list the MIDI devices.
 //!
 //! # Example
 //!
@@ -32,17 +33,17 @@
 //! );
 //! ```
 
-
 use std::{ffi::OsString, io::Result};
 
 use super::{
-    util::{FunctionDir, Status, write_opt},
+    util::{FunctionDir, Status},
     Function, Handle,
 };
 
-/// Builder for USB musical instrument digital interface (MIDI) function. 
+/// Builder for USB musical instrument digital interface (MIDI) function.
 ///
-/// None value will use the f_midi module default. See drivers/usb/gadget/function/f_midi.c#L1274.
+/// None value will use the f_midi module default.
+/// See `drivers/usb/gadget/function/f_midi.c#L1274`.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct MidiBuilder {
@@ -54,9 +55,16 @@ pub struct MidiBuilder {
     pub in_ports: Option<u8>,
     /// Number of MIDI output ports
     pub out_ports: Option<u8>,
-    /// Sound device index for the MIDI adapter. None for automatic selection.
+    /// Sound device index for the MIDI adapter.
+    /// `None` for automatic selection.
     ///
-    /// There must be a sound device available with this index. If the device fails to register and in dmesg one sees 'cannot find the slot for index $index (range 0-1), error: -16', then the index is not available. Most likely the index is already in use by the physical sound card. Try another index within range or unload the physical sound card driver. See [USB Gadget MIDI](https://linux-sunxi.org/USB_Gadget/MIDI).
+    /// There must be a sound device available with this index.
+    /// If the device fails to register and in dmesg one sees
+    /// `cannot find the slot for index $index (range 0-1), error: -16`,
+    /// then the index is not available.
+    /// Most likely the index is already in use by the physical sound card. T
+    /// ry another index within range or unload the physical sound card driver.
+    /// See [USB Gadget MIDI](https://linux-sunxi.org/USB_Gadget/MIDI).
     pub index: Option<u8>,
     /// USB read request queue length
     pub qlen: Option<u8>,
@@ -88,12 +96,29 @@ impl Function for MidiFunction {
     }
 
     fn register(&self) -> Result<()> {
-        write_opt!(self.dir, "buflen", self.builder.buflen);
-        write_opt!(self.dir, "id", self.builder.id.as_ref());
-        write_opt!(self.dir, "in_ports", self.builder.in_ports);
-        write_opt!(self.dir, "out_ports", self.builder.out_ports);
-        write_opt!(self.dir, "index", self.builder.index);
-        write_opt!(self.dir, "qlen", self.builder.qlen);
+        if let Some(buflen) = self.builder.buflen {
+            self.dir.write("buflen", buflen.to_string())?;
+        }
+
+        if let Some(id) = &self.builder.id {
+            self.dir.write("id", id)?;
+        }
+
+        if let Some(in_ports) = self.builder.in_ports {
+            self.dir.write("in_ports", in_ports.to_string())?;
+        }
+
+        if let Some(out_ports) = self.builder.out_ports {
+            self.dir.write("out_ports", out_ports.to_string())?;
+        }
+
+        if let Some(index) = self.builder.index {
+            self.dir.write("index", index.to_string())?;
+        }
+
+        if let Some(qlen) = self.builder.qlen {
+            self.dir.write("qlen", qlen.to_string())?;
+        }
 
         Ok(())
     }

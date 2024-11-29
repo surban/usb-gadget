@@ -12,17 +12,6 @@ use std::{
 
 use crate::{function::register_remove_handlers, trim_os_str};
 
-/// Write an optional value to the function directory if not None.
-macro_rules! write_opt {
-    ($dir:expr, $name:expr, $value:expr) => {
-        if let Some(value) = $value {
-            $dir.write($name, value.to_string())?;
-        }
-    };
-}
-
-pub(super) use write_opt;
-
 /// USB gadget function.
 pub trait Function: fmt::Debug + Send + Sync + 'static {
     /// Name of the function driver.
