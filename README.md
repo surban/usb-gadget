@@ -23,6 +23,7 @@ The following pre-defined USB functions, implemented by kernel drivers, are avai
     * generic
 * human interface device (HID)
 * mass-storage device (MSD)
+* musical instrument digital interface (MIDI)
 
 In addition fully custom USB functions can be implemented in user-mode Rust code.
 
@@ -58,6 +59,7 @@ The following Linux kernel configuration options should be enabled for full func
   * `CONFIG_USB_CONFIGFS_MASS_STORAGE`
   * `CONFIG_USB_CONFIGFS_F_FS`
   * `CONFIG_USB_CONFIGFS_F_HID`
+  * `CONFIG_USB_CONFIGFS_F_MIDI`
 
 root permissions are required to configure USB gadgets on Linux and
 the `configfs` filesystem needs to be mounted.
