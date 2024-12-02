@@ -1,5 +1,6 @@
 //! USB gadget functions.
 
+pub mod audio;
 pub mod custom;
 pub mod hid;
 pub mod midi;
