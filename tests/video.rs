@@ -13,7 +13,9 @@ fn video() {
         (1280, 720, UvcFormat::Mjpeg),
         (1920, 1080, UvcFormat::Mjpeg),
     ]);
-    //builder.frames[0].color_matching = Some(UvcColorMatching::new(0x4, 0x1, 0x2));
+    builder.frames[0].color_matching = Some(UvcColorMatching::new(0x4, 0x1, 0x2));
+    builder.processing_controls = Some(0x05);
+    builder.camera_controls = Some(0x60);
     let (video, func) = builder.build();
     let reg = reg(func);
 

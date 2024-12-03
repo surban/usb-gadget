@@ -4,8 +4,10 @@
 use std::{
     ffi::{OsStr, OsString}, io::{Error, ErrorKind, Result}, path::PathBuf,
     fs,
+    collections::HashSet,
 };
 
+use crate::Speed;
 use super::{
     util::{FunctionDir, Status},
     Function, Handle,
@@ -37,6 +39,13 @@ impl UvcFormat {
         }
     }
 
+    fn group_dir_name(&self) -> &'static OsStr {
+        match self {
+            UvcFormat::Yuyv => OsStr::new("uncompressed"),
+            _ => self.dir_name(),
+        }
+    }
+
     fn group_path(&self) -> PathBuf {
         format!("streaming/{}/{}", self.group_dir_name().to_string_lossy(), self.dir_name().to_string_lossy()).into()
     }
@@ -47,13 +56,6 @@ impl UvcFormat {
 
     fn header_link_path(&self) -> PathBuf {
         format!("streaming/header/h/{}", self.dir_name().to_string_lossy()).into()
-    }
-
-    fn group_dir_name(&self) -> &'static OsStr {
-        match self {
-            UvcFormat::Yuyv => OsStr::new("uncompressed"),
-            _ => self.dir_name(),
-        }
     }
 }
 
@@ -102,20 +104,8 @@ impl UvcFrame {
         format!("{}p", self.height)
     }
 
-    fn group_path(&self) -> PathBuf {
-        self.format.group_path()
-    }
-
-    fn color_matching_path(&self) -> PathBuf {
-        self.format.color_matching_path()
-    }
-
-    fn header_link_path(&self) -> PathBuf {
-        self.format.header_link_path()
-    }
-
     fn path(&self) -> PathBuf {
-        self.group_path().join(&self.dir_name())
+        self.format.group_path().join(&self.dir_name())
     }
 }
 
@@ -137,6 +127,8 @@ pub struct UvcBuilder {
     pub processing_controls: Option<u8>,
     /// Camera Terminal's bmControls field
     pub camera_controls: Option<u8>,
+    /// Camera supported speed
+    pub speed: Option<Speed>,
 }
 
 impl UvcBuilder {
@@ -169,22 +161,24 @@ impl Function for UvcFunction {
             return Err(Error::new(ErrorKind::InvalidInput, "at least one frame must exist"));
         }
 
-        for frame in self.builder.frames.iter() {
+        let mut formats_to_link: HashSet<UvcFormat> = HashSet::new();
+        for frame in &self.builder.frames {
             self.dir.create_dir_all(frame.path())?;
             self.dir.write(frame.path().join("wWidth"), frame.width.to_string())?;
             self.dir.write(frame.path().join("wHeight"), frame.height.to_string())?;
             self.dir.write(frame.path().join("dwMaxVideoFrameBufferSize"), (frame.width * frame.height * 2).to_string())?;
             self.dir.write(frame.path().join("dwFrameInterval"), frame.intervals.iter().map(|i| i.to_string()).collect::<Vec<String>>().join("\n"))?;
+            formats_to_link.insert(frame.format);
 
             if let Some(color_matching) = frame.color_matching.as_ref() {
-                let color_matching_path = frame.color_matching_path();
+                let color_matching_path = frame.format.color_matching_path();
                 // can only have one color matching information per format
                 if !color_matching_path.is_dir() {
                     self.dir.create_dir_all(&color_matching_path)?;
-                    self.dir.write(frame.color_matching_path().join("bColorPrimaries"), color_matching.color_primaries.to_string())?;
-                    self.dir.write(frame.color_matching_path().join("bTransferCharacteristics"), color_matching.transfer_characteristics.to_string())?;
-                    self.dir.write(frame.color_matching_path().join("bMatrixCoefficients"), color_matching.matrix_coefficients.to_string())?;
-                    self.dir.symlink(&color_matching_path, frame.group_path())?;
+                    self.dir.write(frame.format.color_matching_path().join("bColorPrimaries"), color_matching.color_primaries.to_string())?;
+                    self.dir.write(frame.format.color_matching_path().join("bTransferCharacteristics"), color_matching.transfer_characteristics.to_string())?;
+                    self.dir.write(frame.format.color_matching_path().join("bMatrixCoefficients"), color_matching.matrix_coefficients.to_string())?;
+                    self.dir.symlink(&color_matching_path, frame.format.group_path().join("color_matching"))?;
                 } else {
                     log::warn!("Color matching information already exists for format {:?}", frame.format);
                 }
@@ -194,19 +188,45 @@ impl Function for UvcFunction {
         // header linking format descriptors and associated frames to header after creating
         // otherwise cannot add new frames
         self.dir.create_dir_all("streaming/header/h")?;
-        for frame in &self.builder.frames {
-            if !self.dir.property_path(frame.header_link_path())?.is_symlink() {
-                self.dir.symlink(frame.group_path(), frame.header_link_path())?;
-            }
+        self.dir.create_dir_all("control/header/h")?;
+
+        for format in formats_to_link {
+            self.dir.symlink(format.group_path(), format.header_link_path())?;
         }
 
         // supported speeds
-        self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
-        self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
-        self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
-        self.dir.create_dir_all("control/header/h")?;
-        self.dir.symlink("control/header/h", "control/class/fs/h")?;
-        self.dir.symlink("control/header/h", "control/class/ss/h")?;
+        match self.builder.speed {
+            Some(Speed::FullSpeed) => {
+                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
+                self.dir.symlink("control/header/h", "control/class/fs/h")?;
+            },
+            Some(Speed::HighSpeed) => {
+                self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
+                self.dir.symlink("control/header/h", "control/class/hs/h")?;
+            },
+            Some(Speed::SuperSpeed) => {
+                self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
+                self.dir.symlink("control/header/h", "control/class/ss/h")?;
+            },
+            // default to all speeds
+            _ => {
+                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
+                self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
+                self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
+                self.dir.symlink("control/header/h", "control/class/fs/h")?;
+                self.dir.symlink("control/header/h", "control/class/ss/h")?;
+            }
+        }
+
+        // controls
+        if let Some(processing_controls) = self.builder.processing_controls {
+            self.dir.write("control/processing/default/bmControls", processing_controls.to_string())?;
+        }
+
+        // terminal
+        if let Some(camera_controls) = self.builder.camera_controls {
+            self.dir.write("control/terminal/camera/default/bmControls", camera_controls.to_string())?;
+        }
 
         // bandwidth configuration
         if let Some(interval) = self.builder.streaming_interval {
@@ -267,7 +287,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
         let path = entry.path();
         let header_path = path.join("h");
         if header_path.is_symlink() {
-            log::debug!("removing UVC header {:?}", path);
+            log::trace!("removing UVC header {:?}", path);
             fs::remove_file(header_path)?;
         }
     }
@@ -276,7 +296,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
         let path = entry.path();
         let header_path = path.join("h");
         if header_path.is_symlink() {
-            log::debug!("removing UVC header {:?}", path);
+            log::trace!("removing UVC header {:?}", path);
             fs::remove_file(header_path)?;
         }
     }
@@ -286,7 +306,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
         // remove header link first to allow removing frames
         let header_link_path = dir.join(format.header_link_path());
         if header_link_path.is_symlink() {
-            log::debug!("removing UVC header link {:?}", header_link_path);
+            log::trace!("removing UVC header link {:?}", header_link_path);
             fs::remove_file(header_link_path)?;
         }
 
@@ -294,24 +314,26 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
         for entry in fs::read_dir(&group_dir)? {
             let Ok(entry) = entry else { continue };
             let path = entry.path();
-            if path.is_dir() {
-                log::debug!("removing UVC frame {:?}", path);
+            if path.is_dir()
+                && !path.is_symlink() {
+                log::trace!("removing UVC frame {:?}", path);
                 fs::remove_dir(path)?;
             }
         }
 
         let color_matching_dir = dir.join(format.color_matching_path());
         if color_matching_dir.is_dir() {
-            log::debug!("removing UVC color matching information {:?}", color_matching_dir);
+            log::trace!("removing UVC color matching information {:?}", color_matching_dir);
+            fs::remove_file(dir.join(format.group_path()).join("color_matching"))?;
             fs::remove_dir(color_matching_dir)?;
         }
 
-        log::debug!("removing UVC group {:?}", group_dir);
+        log::trace!("removing UVC group {:?}", group_dir);
         fs::remove_dir(group_dir)?;
     }
 
     // finally remove header folders
-    log::debug!("removing UVC headers");
+    log::trace!("removing UVC headers");
     fs::remove_dir(dir.join("streaming/header/h"))?;
     fs::remove_dir(dir.join("control/header/h"))?;
 
