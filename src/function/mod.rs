@@ -9,6 +9,7 @@ pub mod net;
 pub mod other;
 pub mod serial;
 pub mod util;
+pub mod video;
 
 use std::{cmp, hash, hash::Hash, sync::Arc};
 
@@ -63,4 +64,5 @@ impl Hash for Handle {
 fn register_remove_handlers() {
     register_remove_handler(custom::driver(), custom::remove_handler);
     register_remove_handler(msd::driver(), msd::remove_handler);
+    register_remove_handler(video::driver(), video::remove_handler);
 }

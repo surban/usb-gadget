@@ -205,6 +205,13 @@ impl FunctionDir {
         fs::create_dir(path)
     }
 
+    /// Create a subdirectory and its parent directories.
+    pub fn create_dir_all(&self, name: impl AsRef<Path>) -> Result<()> {
+        let path = self.property_path(name)?;
+        log::debug!("creating directorys {}", path.display());
+        fs::create_dir_all(path)
+    }
+
     /// Remove a subdirectory.
     pub fn remove_dir(&self, name: impl AsRef<Path>) -> Result<()> {
         let path = self.property_path(name)?;
@@ -248,6 +255,14 @@ impl FunctionDir {
         let value = value.as_ref();
         log::debug!("setting property {} to {}", path.display(), String::from_utf8_lossy(value));
         fs::write(path, value)
+    }
+
+    /// Create a symbolic link.
+    pub fn symlink(&self, target: impl AsRef<Path>, link: impl AsRef<Path>) -> Result<()> {
+        let target = self.property_path(target)?;
+        let link = self.property_path(link)?;
+        log::debug!("creating symlink {} -> {}", link.display(), target.display());
+        std::os::unix::fs::symlink(target, link)
     }
 }
 
