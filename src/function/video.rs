@@ -219,14 +219,17 @@ impl Function for UvcFunction {
                 self.dir.symlink("control/header/h", "control/class/fs/h")?;
             }
             Some(Speed::HighSpeed) => {
+                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
                 self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
-                self.dir.symlink("control/header/h", "control/class/hs/h")?;
+                self.dir.symlink("control/header/h", "control/class/fs/h")?;
             }
             Some(Speed::SuperSpeed) => {
+                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
+                self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
                 self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
+                self.dir.symlink("control/header/h", "control/class/fs/h")?;
                 self.dir.symlink("control/header/h", "control/class/ss/h")?;
             }
-            // default to all speeds
             _ => {
                 self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
                 self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
