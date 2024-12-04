@@ -5,11 +5,11 @@
 //! # Example
 //!
 //! ```no_run
-//! use usb_gadget::function::audio::Uac2;
+//! use usb_gadget::function::audio::{Uac2, Channel};
 //! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
 //!
 //! // capture: 8 ch, 48000 Hz, 24 bit, playback: 2 ch, 48000 Hz, 16 bit
-//! let (audio, func) = Uac2::new((0b1111_1111, 48000, 24 / 8), (0b11, 48000, 16 / 8)).build();
+//! let (audio, func) = Uac2::new(Channel::new(0b1111_1111, 48000, 24 / 8), Channel::new(0b11, 48000, 16 / 8)).build();
 //!
 //! let udc = default_udc().expect("cannot get UDC");
 //! let reg =
@@ -36,12 +36,9 @@ use super::{
     Function, Handle,
 };
 
-/// Audio device configuration.
-///
-/// Fields are optional and will be set to f_uac2 default values if not specified, see drivers/usb/gadget/function/u_uac2.h. Not all fields are supported by all kernels; permission denied errors may occur if unsupported fields are set.
+/// Audio channel configuration.
 #[derive(Debug, Clone, Default)]
-#[non_exhaustive]
-pub struct Uac2Config {
+pub struct Channel {
     /// Audio channel mask. Set to 0 to disable the audio endpoint.
     ///
     /// The audio channel mask is a bit mask of the audio channels. The mask is a 32-bit integer with each bit representing a channel. The least significant bit is channel 1. The mask is used to specify the audio channels that are present in the audio stream. For example, a stereo stream would have a mask of 0x3 (channel 1 and channel 2).
@@ -50,6 +47,23 @@ pub struct Uac2Config {
     pub sample_rate: Option<u32>,
     /// Audio sample size (bytes) so 2 bytes per sample (16 bit) would be 2.
     pub sample_size: Option<u32>,
+}
+
+impl Channel {
+    /// Creates a new audio channel with the specified channel mask, sample rate (Hz), and sample size (bytes).
+    pub fn new(channel_mask: u32, sample_rate: u32, sample_size: u32) -> Self {
+        Self { channel_mask: Some(channel_mask), sample_rate: Some(sample_rate), sample_size: Some(sample_size) }
+    }
+}
+
+/// Audio device configuration.
+///
+/// Fields are optional and will be set to f_uac2 default values if not specified, see drivers/usb/gadget/function/u_uac2.h. Not all fields are supported by all kernels; permission denied errors may occur if unsupported fields are set.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Uac2Config {
+    /// Audio channel configuration.
+    pub channel: Channel,
     /// Audio sync type (capture only)
     pub sync_type: Option<u32>,
     /// Capture bInterval for HS/SS (1-4: fixed, 0: auto)
@@ -109,27 +123,17 @@ impl Uac2Builder {
         (Uac2 { dir: dir.clone() }, Handle::new(Uac2Function { builder: self, dir }))
     }
 
-    /// Add audio capture configuration.
-    pub fn add_capture_config(&mut self, capture: Uac2Config) {
-        self.capture = capture;
-    }
-
-    /// Add audio playback configuration.
-    pub fn add_playback_config(&mut self, playback: Uac2Config) {
-        self.playback = playback;
-    }
-
     /// Set audio capture configuration.
     #[must_use]
     pub fn with_capture_config(mut self, capture: Uac2Config) -> Self {
-        self.add_capture_config(capture);
+        self.capture = capture;
         self
     }
 
     /// Set audio playback configuration.
     #[must_use]
     pub fn with_playback_config(mut self, playback: Uac2Config) -> Self {
-        self.add_playback_config(playback);
+        self.playback = playback;
         self
     }
 }
@@ -151,13 +155,13 @@ impl Function for Uac2Function {
 
     fn register(&self) -> Result<()> {
         // capture
-        if let Some(channel_mask) = self.builder.capture.channel_mask {
+        if let Some(channel_mask) = self.builder.capture.channel.channel_mask {
             self.dir.write("c_chmask", channel_mask.to_string())?;
         }
-        if let Some(sample_rate) = self.builder.capture.sample_rate {
+        if let Some(sample_rate) = self.builder.capture.channel.sample_rate {
             self.dir.write("c_srate", sample_rate.to_string())?;
         }
-        if let Some(sample_size) = self.builder.capture.sample_size {
+        if let Some(sample_size) = self.builder.capture.channel.sample_size {
             self.dir.write("c_ssize", sample_size.to_string())?;
         }
         if let Some(sync_type) = self.builder.capture.sync_type {
@@ -198,13 +202,13 @@ impl Function for Uac2Function {
         }
 
         // playback
-        if let Some(channel_mask) = self.builder.playback.channel_mask {
+        if let Some(channel_mask) = self.builder.playback.channel.channel_mask {
             self.dir.write("p_chmask", channel_mask.to_string())?;
         }
-        if let Some(sample_rate) = self.builder.playback.sample_rate {
+        if let Some(sample_rate) = self.builder.playback.channel.sample_rate {
             self.dir.write("p_srate", sample_rate.to_string())?;
         }
-        if let Some(sample_size) = self.builder.playback.sample_size {
+        if let Some(sample_size) = self.builder.playback.channel.sample_size {
             self.dir.write("p_ssize", sample_size.to_string())?;
         }
         if let Some(hs_interval) = self.builder.playback.hs_interval {
@@ -274,18 +278,14 @@ pub struct Uac2 {
 impl Uac2 {
     /// Creates a new USB Audio Class 2 (UAC2) builder with g_uac2 audio defaults.
     pub fn builder() -> Uac2Builder {
-        Uac2Builder { capture: Uac2Config::default(), playback: Uac2Config::default(), ..Uac2Builder::default() }
+        Uac2Builder::default()
     }
 
-    /// Creates a new USB Audio Class 2 (UAC2) function with the specified capture and playback channel mask, sample rate (Hz), and sample size (bytes).
-    pub fn new(capture: (u32, u32, u32), playback: (u32, u32, u32)) -> Uac2Builder {
+    /// Creates a new USB Audio Class 2 (UAC2) function with the specified capture and playback channels.
+    pub fn new(capture: Channel, playback: Channel) -> Uac2Builder {
         let mut builder = Uac2Builder::default();
-        builder.capture.channel_mask = Some(capture.0);
-        builder.capture.sample_rate = Some(capture.1);
-        builder.capture.sample_size = Some(capture.2);
-        builder.playback.channel_mask = Some(playback.0);
-        builder.playback.sample_rate = Some(playback.1);
-        builder.playback.sample_size = Some(playback.2);
+        builder.capture.channel = capture;
+        builder.playback.channel = playback;
         builder
     }
 
