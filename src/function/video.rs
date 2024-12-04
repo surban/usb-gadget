@@ -151,7 +151,7 @@ impl From<Frame> for UvcFrame {
         UvcFrame {
             width: frame.width,
             height: frame.height,
-            intervals: frame.fps.iter().map(|i| (1_000_000_000 / *i as u32)).collect(),
+            intervals: frame.fps.iter().filter(|i| **i != 0).map(|i| (1_000_000_000 / *i as u32)).collect(),
             color_matching: None,
             format: frame.format,
         }
@@ -237,6 +237,10 @@ impl Function for UvcFunction {
     fn register(&self) -> Result<()> {
         if self.builder.frames.is_empty() {
             return Err(Error::new(ErrorKind::InvalidInput, "at least one frame must exist"));
+        }
+
+        if self.builder.frames.iter().any(|f| f.intervals.is_empty()) {
+            return Err(Error::new(ErrorKind::InvalidInput, "at least one interval must exist for every frame"));
         }
 
         // format groups to link to header
