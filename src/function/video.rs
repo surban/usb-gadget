@@ -1,6 +1,6 @@
 //! USB Video Class (UVC) function.
 //!
-//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UVC` must be enabled.
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UVC` must be enabled. It must be paired with a userspace program that responds to UVC control requests and fills buffers to be queued to the V4L2 device that the driver creates. For example https://gitlab.freedesktop.org/camera/uvc-gadget.
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
@@ -22,28 +22,28 @@ pub(crate) fn driver() -> &'static OsStr {
 /// USB Video Class (UVC) frame format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
-pub enum UvcFormat {
+pub enum Format {
     /// YUYV format [Packed YUV formats](https://docs.kernel.org/6.12/userspace-api/media/v4l/pixfmt-packed-yuv.html). Currently only uncompressed format supported.
     Yuyv,
     /// MJPEG compressed format.
     Mjpeg,
 }
 
-impl UvcFormat {
-    fn all() -> &'static [UvcFormat] {
-        &[UvcFormat::Yuyv, UvcFormat::Mjpeg]
+impl Format {
+    fn all() -> &'static [Format] {
+        &[Format::Yuyv, Format::Mjpeg]
     }
 
     fn dir_name(&self) -> &'static OsStr {
         match self {
-            UvcFormat::Yuyv => OsStr::new("yuyv"),
-            UvcFormat::Mjpeg => OsStr::new("mjpeg"),
+            Format::Yuyv => OsStr::new("yuyv"),
+            Format::Mjpeg => OsStr::new("mjpeg"),
         }
     }
 
     fn group_dir_name(&self) -> &'static OsStr {
         match self {
-            UvcFormat::Yuyv => OsStr::new("uncompressed"),
+            Format::Yuyv => OsStr::new("uncompressed"),
             _ => self.dir_name(),
         }
     }
@@ -53,12 +53,16 @@ impl UvcFormat {
             .into()
     }
 
+    fn header_link_path(&self) -> PathBuf {
+        format!("streaming/header/h/{}", self.dir_name().to_string_lossy()).into()
+    }
+
     fn color_matching_path(&self) -> PathBuf {
         format!("streaming/color_matching/{}", self.dir_name().to_string_lossy()).into()
     }
 
-    fn header_link_path(&self) -> PathBuf {
-        format!("streaming/header/h/{}", self.dir_name().to_string_lossy()).into()
+    fn color_matching_link_path(&self) -> PathBuf {
+        self.group_path().join("color_matching")
     }
 }
 
@@ -70,7 +74,7 @@ impl UvcFormat {
 /// Color Matching Descriptor section of the UVC specification.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct UvcColorMatching {
+pub struct ColorMatching {
     /// Color primaries
     pub color_primaries: u8,
     /// Transfer characteristics
@@ -79,10 +83,42 @@ pub struct UvcColorMatching {
     pub matrix_coefficients: u8,
 }
 
-impl UvcColorMatching {
+impl ColorMatching {
     /// Create a new color matching information with the specified properties.
     pub fn new(color_primaries: u8, transfer_characteristics: u8, matrix_coefficients: u8) -> Self {
         Self { color_primaries, transfer_characteristics, matrix_coefficients }
+    }
+}
+
+/// Helper to create a new [`UvcFrame`].
+#[derive(Debug, Clone)]
+pub struct Frame {
+    /// Frame width in pixels
+    pub width: u32,
+    /// Frame height in pixels
+    pub height: u32,
+    /// Frame [`Format`]
+    pub format: Format,
+    /// Frames per second available
+    pub fps: Vec<u16>,
+}
+
+impl Frame {
+    /// Create a new [`UvcFrame`] with the specified properties.
+    pub fn new(width: u32, height: u32, fps: Vec<u16>, format: Format) -> Self {
+        Self { width, height, format, fps }
+    }
+}
+
+impl From<Frame> for UvcFrame {
+    fn from(frame: Frame) -> Self {
+        UvcFrame {
+            width: frame.width,
+            height: frame.height,
+            intervals: frame.fps.iter().map(|i| (1_000_000_000 / *i as u32)).collect(),
+            color_matching: None,
+            format: frame.format,
+        }
     }
 }
 
@@ -97,9 +133,9 @@ pub struct UvcFrame {
     /// Frame intervals available each in 100 ns units
     pub intervals: Vec<u32>,
     /// Color matching information. If not provided, the default values are used.
-    pub color_matching: Option<UvcColorMatching>,
+    pub color_matching: Option<ColorMatching>,
     /// Frame format
-    pub format: UvcFormat,
+    pub format: Format,
 }
 
 impl UvcFrame {
@@ -109,6 +145,11 @@ impl UvcFrame {
 
     fn path(&self) -> PathBuf {
         self.format.group_path().join(&self.dir_name())
+    }
+
+    /// Create a new UVC frame with the specified properties.
+    pub fn new(width: u32, height: u32, format: Format, intervals: Vec<u32>) -> Self {
+        Self { width, height, intervals, color_matching: None, format }
     }
 }
 
@@ -164,7 +205,10 @@ impl Function for UvcFunction {
             return Err(Error::new(ErrorKind::InvalidInput, "at least one frame must exist"));
         }
 
-        let mut formats_to_link: HashSet<UvcFormat> = HashSet::new();
+        // format groups to link to header
+        let mut formats_to_link: HashSet<Format> = HashSet::new();
+
+        // create frame descriptors
         for frame in &self.builder.frames {
             self.dir.create_dir_all(frame.path())?;
             self.dir.write(frame.path().join("wWidth"), frame.width.to_string())?;
@@ -196,7 +240,7 @@ impl Function for UvcFunction {
                         frame.format.color_matching_path().join("bMatrixCoefficients"),
                         color_matching.matrix_coefficients.to_string(),
                     )?;
-                    self.dir.symlink(&color_matching_path, frame.format.group_path().join("color_matching"))?;
+                    self.dir.symlink(&color_matching_path, frame.format.color_matching_link_path())?;
                 } else {
                     log::warn!("Color matching information already exists for format {:?}", frame.format);
                 }
@@ -273,22 +317,13 @@ pub struct Uvc {
 impl Uvc {
     /// Creates a new USB Video Class (UVC) builder with f_uvc video defaults.
     pub fn builder() -> UvcBuilder {
-        UvcBuilder { ..Default::default() }
+        UvcBuilder::default()
     }
 
     /// Creates a new USB Video Class (UVC) with the specified frames.
-    pub fn new(frames: Vec<(u32, u32, UvcFormat)>) -> UvcBuilder {
-        let frames = frames
-            .into_iter()
-            .map(|(width, height, format)| UvcFrame {
-                width,
-                height,
-                // 120, 60, 30, 15 fps
-                intervals: vec![8333, 16666, 33333, 66666],
-                color_matching: None,
-                format,
-            })
-            .collect();
+    pub fn new<F>(frames: Vec<F>) -> UvcBuilder 
+        where UvcFrame: From<F> {
+        let frames = frames.into_iter().map(UvcFrame::from).collect();
         UvcBuilder { frames, ..Default::default() }
     }
 
@@ -325,7 +360,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
 
     // remove all UVC frames, color matching information and header links
     if dir.join("streaming").is_dir() {
-        for format in UvcFormat::all() {
+        for format in Format::all() {
             // remove header link first to allow removing frames
             let header_link_path = dir.join(format.header_link_path());
             if header_link_path.is_symlink() {
@@ -336,7 +371,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
             let color_matching_dir = dir.join(format.color_matching_path());
             if color_matching_dir.is_dir() {
                 log::trace!("removing UVC color matching information {:?}", color_matching_dir);
-                fs::remove_file(dir.join(format.group_path()).join("color_matching"))?;
+                fs::remove_file(dir.join(format.color_matching_link_path()))?;
                 fs::remove_dir(color_matching_dir)?;
             }
 

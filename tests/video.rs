@@ -1,19 +1,19 @@
 mod common;
 use common::*;
 
-use usb_gadget::function::video::{Uvc, UvcColorMatching, UvcFormat};
+use usb_gadget::function::video::{Uvc, ColorMatching, Format, Frame};
 
 #[test]
 fn video() {
     init();
 
     let mut builder = Uvc::new(vec![
-        (640, 480, UvcFormat::Yuyv),
-        (640, 480, UvcFormat::Mjpeg),
-        (1280, 720, UvcFormat::Mjpeg),
-        (1920, 1080, UvcFormat::Mjpeg),
+        Frame::new(640, 360, vec![15, 30, 60, 120], Format::Yuyv),
+        Frame::new(640, 360, vec![15, 30, 60, 120], Format::Mjpeg),
+        Frame::new(1280, 720, vec![30, 60], Format::Mjpeg),
+        Frame::new(1920, 1080, vec![30], Format::Mjpeg),
     ]);
-    builder.frames[0].color_matching = Some(UvcColorMatching::new(0x4, 0x1, 0x2));
+    builder.frames[0].color_matching = Some(ColorMatching::new(0x4, 0x1, 0x2));
     builder.processing_controls = Some(0x05);
     builder.camera_controls = Some(0x60);
     let (video, func) = builder.build();
