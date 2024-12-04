@@ -1,7 +1,7 @@
 mod common;
 use common::*;
 
-use usb_gadget::function::video::{Uvc, ColorMatching, Format, Frame};
+use usb_gadget::function::video::{ColorMatching, Format, Frame, Uvc};
 
 #[test]
 fn video() {

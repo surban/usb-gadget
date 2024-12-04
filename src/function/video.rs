@@ -13,7 +13,6 @@ use super::{
     util::{FunctionDir, Status},
     Function, Handle,
 };
-use crate::Speed;
 
 pub(crate) fn driver() -> &'static OsStr {
     OsStr::new("uvc")
@@ -153,7 +152,7 @@ impl UvcFrame {
     }
 }
 
-/// Builder for USB Video Class (UVC) function.
+/// Builder for USB Video Class (UVC) function. None value uses the f_uvc default/generated value.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct UvcBuilder {
@@ -171,8 +170,6 @@ pub struct UvcBuilder {
     pub processing_controls: Option<u8>,
     /// Camera Terminal's bmControls field
     pub camera_controls: Option<u8>,
-    /// Camera supported speed
-    pub speed: Option<Speed>,
 }
 
 impl UvcBuilder {
@@ -256,32 +253,12 @@ impl Function for UvcFunction {
             self.dir.symlink(format.group_path(), format.header_link_path())?;
         }
 
-        // supported speeds
-        match self.builder.speed {
-            Some(Speed::FullSpeed) => {
-                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
-                self.dir.symlink("control/header/h", "control/class/fs/h")?;
-            }
-            Some(Speed::HighSpeed) => {
-                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
-                self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
-                self.dir.symlink("control/header/h", "control/class/fs/h")?;
-            }
-            Some(Speed::SuperSpeed) => {
-                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
-                self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
-                self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
-                self.dir.symlink("control/header/h", "control/class/fs/h")?;
-                self.dir.symlink("control/header/h", "control/class/ss/h")?;
-            }
-            _ => {
-                self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
-                self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
-                self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
-                self.dir.symlink("control/header/h", "control/class/fs/h")?;
-                self.dir.symlink("control/header/h", "control/class/ss/h")?;
-            }
-        }
+        // supported speeds: all linked but selected based on gadget speed: https://github.com/torvalds/linux/blob/master/drivers/usb/gadget/function/f_uvc.c#L732
+        self.dir.symlink("streaming/header/h", "streaming/class/fs/h")?;
+        self.dir.symlink("streaming/header/h", "streaming/class/hs/h")?;
+        self.dir.symlink("streaming/header/h", "streaming/class/ss/h")?;
+        self.dir.symlink("control/header/h", "control/class/fs/h")?;
+        self.dir.symlink("control/header/h", "control/class/ss/h")?;
 
         // controls
         if let Some(processing_controls) = self.builder.processing_controls {
@@ -321,8 +298,10 @@ impl Uvc {
     }
 
     /// Creates a new USB Video Class (UVC) with the specified frames.
-    pub fn new<F>(frames: Vec<F>) -> UvcBuilder 
-        where UvcFrame: From<F> {
+    pub fn new<F>(frames: Vec<F>) -> UvcBuilder
+    where
+        UvcFrame: From<F>,
+    {
         let frames = frames.into_iter().map(UvcFrame::from).collect();
         UvcBuilder { frames, ..Default::default() }
     }
