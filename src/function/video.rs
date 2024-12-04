@@ -1,6 +1,43 @@
 //! USB Video Class (UVC) function.
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UVC` must be enabled. It must be paired with a userspace program that responds to UVC control requests and fills buffers to be queued to the V4L2 device that the driver creates. For example https://gitlab.freedesktop.org/camera/uvc-gadget.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use usb_gadget::function::video::{Uvc, Frame, Format};
+//! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
+//!
+//! // Create a new UVC function with the specified frames:
+//! // - 640x360 YUYV format at 15, 30, 60, 120 fps
+//! // - 640x360 MJPEG format at 15, 30, 60, 120 fps
+//! // - 1280x720 MJPEG format at 30, 60 fps
+//! // - 1920x1080 MJPEG format at 30 fps
+//! let (video, func) = Uvc::new(vec![
+//!     Frame::new(640, 360, vec![15, 30, 60, 120], Format::Yuyv),
+//!     Frame::new(640, 360, vec![15, 30, 60, 120], Format::Mjpeg),
+//!     Frame::new(1280, 720, vec![30, 60], Format::Mjpeg),
+//!     Frame::new(1920, 1080, vec![30], Format::Mjpeg),
+//! ]).build();
+//!
+//! let udc = default_udc().expect("cannot get UDC");
+//! let reg =
+//!     // USB device descriptor base class 0xEF, 0x02, 0x01: Misc, Interface Association Descriptor
+//!     // Linux Foundation VID Gadget PID
+//!     Gadget::new(Class::new(0xEF, 0x02, 0x01), Id::new(0x1d6b, 0x0104), Strings::new("Clippy Manufacturer", "Rust Video Device", "RUST0123456"))
+//!         .with_config(Config::new("UVC Config 1").with_function(func))
+//!         .bind(&udc)
+//!         .expect("cannot bind to UDC");
+//!
+//! println!(
+//!     "UAC2 video {} at {} to {} status {:?}",
+//!     reg.name().to_string_lossy(),
+//!     reg.path().display(),
+//!     udc.name().to_string_lossy(),
+//!     video.status()
+//! );
+//! ```
+//! The gadget will bind won't enumaterate with host unless a userspace program (such as uvc-gadget) is running and responding to UVC control requests.
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
