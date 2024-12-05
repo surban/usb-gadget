@@ -2,17 +2,34 @@
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_PRINTER` must be enabled.
 //!
-//! A sysfs file at /dev/g_printerN will be created for each instance of the function, where N instance number. See https://docs.kernel.org/usb/gadget_printer.html#using-the-example-code for how to use this file.
+//! A sysfs file at /dev/g_printerN will be created for each instance of the function, where N instance number. See './examples/printer.rs' for an example.
 
-use std::{
-    ffi::OsString,
-    io::Result,
-};
+use bitflags::bitflags;
+use std::{ffi::OsString, io::Result};
 
 use super::{
     util::{FunctionDir, Status},
     Function, Handle,
 };
+
+/// Get printer status ioctrl ID
+pub const GADGET_GET_PRINTER_STATUS: u8 = 0x21;
+/// Set printer status ioctrl ID
+pub const GADGET_SET_PRINTER_STATUS: u8 = 0x22;
+
+bitflags! {
+    #[derive(Clone, Copy, Debug)]
+    #[non_exhaustive]
+    /// Printer status flags https://www.usb.org/sites/default/files/usbprint11a021811.pdf
+    pub struct StatusFlags: u8 {
+        /// Printer not in error state
+        const NOT_ERROR = (1 << 3);
+        /// Printer selected
+        const SELECTED = (1 << 4);
+        /// Printer out of paper
+        const PAPER_EMPTY = (1 << 5);
+    }
+}
 
 /// Builder for USB human interface device (PRINTER) function.
 #[derive(Debug, Clone)]
@@ -21,7 +38,7 @@ pub struct PrinterBuilder {
     /// The PNP ID string used for this printer.
     pub pnp_string: Option<String>,
     /// The number of 8k buffers to use per endpoint. The default is 10.
-    pub qlen: Option<u8>
+    pub qlen: Option<u8>,
 }
 
 impl PrinterBuilder {
@@ -70,10 +87,7 @@ pub struct Printer {
 impl Printer {
     /// Creates a new USB human interface device (PRINTER) builder.
     pub fn builder() -> PrinterBuilder {
-        PrinterBuilder {
-            pnp_string: None,
-            qlen: None,
-        }
+        PrinterBuilder { pnp_string: None, qlen: None }
     }
 
     /// Access to registration status.
