@@ -18,7 +18,7 @@
 //!     Frame::new(640, 360, vec![15, 30, 60, 120], Format::Mjpeg),
 //!     Frame::new(1280, 720, vec![30, 60], Format::Mjpeg),
 //!     Frame::new(1920, 1080, vec![30], Format::Mjpeg),
-//! ]).build();
+//! ]);
 //!
 //! let udc = default_udc().expect("cannot get UDC");
 //! let reg =
@@ -184,8 +184,8 @@ impl UvcFrame {
     }
 
     /// Create a new UVC frame with the specified properties.
-    pub fn new(width: u32, height: u32, format: Format, intervals: Vec<u32>) -> Self {
-        Self { width, height, intervals, color_matching: None, format }
+    pub fn new(width: u32, height: u32, format: Format, intervals: impl IntoIterator<Item = u32>) -> Self {
+        Self { width, height, intervals: intervals.into_iter().collect(), color_matching: None, format }
     }
 }
 
@@ -216,6 +216,24 @@ impl UvcBuilder {
     pub fn build(self) -> (Uvc, Handle) {
         let dir = FunctionDir::new();
         (Uvc { dir: dir.clone() }, Handle::new(UvcFunction { builder: self, dir }))
+    }
+
+    /// Add a frame to builder
+    pub fn add_frame<F>(&mut self, frame: F)
+    where
+        UvcFrame: From<F>,
+    {
+        self.frames.push(frame.into());
+    }
+
+    /// UVC builder with frames
+    #[must_use]
+    pub fn with_frames<F>(mut self, frames: impl IntoIterator<Item = F>) -> Self
+    where
+        UvcFrame: From<F>,
+    {
+        self.frames = frames.into_iter().map(UvcFrame::from).collect();
+        self
     }
 }
 
@@ -339,12 +357,13 @@ impl Uvc {
     }
 
     /// Creates a new USB Video Class (UVC) with the specified frames.
-    pub fn new<F>(frames: Vec<F>) -> UvcBuilder
+    pub fn new<F>(frames: impl IntoIterator<Item = F>) -> (Uvc, Handle)
     where
         UvcFrame: From<F>,
     {
         let frames = frames.into_iter().map(UvcFrame::from).collect();
-        UvcBuilder { frames, ..Default::default() }
+        let builder = UvcBuilder { frames, ..Default::default() };
+        builder.build()
     }
 
     /// Access to registration status.

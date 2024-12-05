@@ -7,7 +7,7 @@ use usb_gadget::function::video::{ColorMatching, Format, Frame, Uvc};
 fn video() {
     init();
 
-    let mut builder = Uvc::new(vec![
+    let mut builder = Uvc::builder().with_frames(vec![
         Frame::new(640, 360, vec![15, 30, 60, 120], Format::Yuyv),
         Frame::new(640, 360, vec![15, 30, 60, 120], Format::Mjpeg),
         Frame::new(1280, 720, vec![30, 60], Format::Mjpeg),
