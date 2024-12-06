@@ -12,7 +12,7 @@ use usb_gadget::{default_udc, Class, Config, Gadget, Id, RegGadget, Strings, GAD
 
 // Printer read buffer size, best equal to EP wMaxPacketSize
 const BUF_SIZE: usize = 512;
-// Printer sysfs path - 0 assumes we are the only printer gadget!
+// Printer device path - 0 assumes we are the only printer gadget!
 const SYSFS_PATH: &str = "/dev/g_printer0";
 // Pages to 'print' before exiting
 const PRINT_EXIT_COUNT: u8 = 1;
