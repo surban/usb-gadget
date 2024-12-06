@@ -9,7 +9,7 @@
 //! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
 //!
 //! // capture: 8 ch, 48000 Hz, 24 bit, playback: 2 ch, 48000 Hz, 16 bit
-//! let (audio, func) = Uac2::new(Channel::new(0b1111_1111, 48000, 24 / 8), Channel::new(0b11, 48000, 16 / 8)).build();
+//! let (audio, func) = Uac2::new(Channel::new(0b1111_1111, 48000, 24 / 8), Channel::new(0b11, 48000, 16 / 8));
 //!
 //! let udc = default_udc().expect("cannot get UDC");
 //! let reg =
@@ -282,11 +282,11 @@ impl Uac2 {
     }
 
     /// Creates a new USB Audio Class 2 (UAC2) function with the specified capture and playback channels.
-    pub fn new(capture: Channel, playback: Channel) -> Uac2Builder {
+    pub fn new(capture: Channel, playback: Channel) -> (Uac2, Handle) {
         let mut builder = Uac2Builder::default();
         builder.capture.channel = capture;
         builder.playback.channel = playback;
-        builder
+        builder.build()
     }
 
     /// Access to registration status.
