@@ -7,6 +7,7 @@ pub mod midi;
 pub mod msd;
 pub mod net;
 pub mod other;
+pub mod printer;
 pub mod serial;
 pub mod util;
 pub mod video;

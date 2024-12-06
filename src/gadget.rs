@@ -26,6 +26,9 @@ use crate::{
     Speed,
 };
 
+/// USB gadget ioctl magic byte.
+pub const GADGET_IOC_MAGIC: u8 = b'g';
+
 /// USB gadget or interface class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Class {
