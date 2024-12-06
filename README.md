@@ -23,6 +23,7 @@ The following pre-defined USB functions, implemented by kernel drivers, are avai
     * generic
 * human interface device (HID)
 * mass-storage device (MSD)
+* printer device
 * musical instrument digital interface (MIDI)
 * audio device (UAC2)
 * video device (UVC)
@@ -61,6 +62,7 @@ The following Linux kernel configuration options should be enabled for full func
   * `CONFIG_USB_CONFIGFS_MASS_STORAGE`
   * `CONFIG_USB_CONFIGFS_F_FS`
   * `CONFIG_USB_CONFIGFS_F_HID`
+  * `CONFIG_USB_CONFIGFS_F_PRINTER`
   * `CONFIG_USB_CONFIGFS_F_MIDI`
   * `CONFIG_USB_CONFIGFS_F_UAC2`
   * `CONFIG_USB_CONFIGFS_F_UVC`

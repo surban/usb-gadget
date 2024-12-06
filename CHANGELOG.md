@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 0.7.5 - 2024-12-06
+### Added
+- Printer gadget support by John Whittington
+- UAC2 gadget support by John Whittington
+- UVC gadget support by John Whittington
+
+
 ## 0.7.4 - 2024-11-29
 ### Added
 - MIDI gadget support by John Whittington
