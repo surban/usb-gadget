@@ -1,0 +1,11 @@
+[target.i686-unknown-linux-gnu]
+runner = 'sudo -E'
+
+[target.x86_64-unknown-linux-gnu]
+runner = 'sudo -E'
+
+[target.armv7-unknown-linux-gnueabihf]
+runner = 'sudo -E'
+
+[target.aarch64-unknown-linux-gnu]
+runner = 'sudo -E'
