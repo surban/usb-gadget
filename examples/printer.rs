@@ -1,14 +1,20 @@
 //! Printer example userspace application based on [prn_example](https://docs.kernel.org/6.6/usb/gadget_printer.html#example-code)
 //!
-//! Creates and binds a printer gadget function, then reads data from the device file created by the gadget to stdout. Will exit after printing a set number of pages.
-use nix::{ioctl_read, ioctl_readwrite};
-use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write};
-use std::os::unix::io::AsRawFd;
-use std::path::PathBuf;
+//! Creates and binds a printer gadget function, then reads data from the device file created by the
+//! gadget to stdout. Will exit after printing a set number of pages.
 
-use usb_gadget::function::printer::{Printer, StatusFlags, GADGET_GET_PRINTER_STATUS, GADGET_SET_PRINTER_STATUS};
-use usb_gadget::{default_udc, Class, Config, Gadget, Id, RegGadget, Strings, GADGET_IOC_MAGIC};
+use nix::{ioctl_read, ioctl_readwrite};
+use std::{
+    fs::{File, OpenOptions},
+    io::{self, Read, Write},
+    os::unix::io::AsRawFd,
+};
+
+use usb_gadget::{
+    default_udc,
+    function::printer::{Printer, StatusFlags, GADGET_GET_PRINTER_STATUS, GADGET_SET_PRINTER_STATUS},
+    Class, Config, Gadget, Id, RegGadget, Strings, GADGET_IOC_MAGIC,
+};
 
 // Printer read buffer size, best equal to EP wMaxPacketSize
 const BUF_SIZE: usize = 512;
@@ -111,43 +117,35 @@ fn print_status(status: StatusFlags) {
 fn main() -> io::Result<()> {
     env_logger::init();
 
-    // create var printer gadget, will unbind on drop
+    // create printer gadget, will unbind on drop
     let g_printer = create_printer_gadget().map_err(|e| {
-        eprintln!("Failed to create printer gadget: {:?}", e);
+        eprintln!("Failed to create printer gadget: {e}");
         e
     })?;
-    println!("Printer gadget created: {:?}", g_printer.path());
+    println!("Printer gadget created: {}", g_printer.path().display());
 
-    // wait for sysfs device to create
-    let mut count = 0;
-    let mut dev_path = None;
+    // wait for device file creation
     println!("Attempt open device path: {}", DEV_PATH);
-    while count < 5 {
+    let mut count = 0;
+    let mut file = loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
-        // test open access
-        if let Ok(_) = OpenOptions::new().read(true).write(true).open(&DEV_PATH) {
-            dev_path = Some(PathBuf::from(DEV_PATH));
-            break;
-        }
-        count += 1;
-    }
 
-    match dev_path {
-        Some(pp) => {
-            let mut file = OpenOptions::new().read(true).write(true).open(&pp)?;
-
-            print_status(set_printer_status(&file, DEFAULT_STATUS, false)?);
-            if let Err(e) = read_printer_data(&mut file) {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to read data from {}: {:?}", pp.display(), e),
+        match OpenOptions::new().read(true).write(true).open(DEV_PATH) {
+            Ok(file) => break file,
+            Err(_) if count < 5 => count += 1,
+            Err(err) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Printer {DEV_PATH} not found or cannot open: {err}",),
                 ))
-            } else {
-                Ok(())
             }
         }
-        _ => {
-            Err(io::Error::new(io::ErrorKind::NotFound, format!("Printer {} not found or cannot open", DEV_PATH)))
-        }
+    };
+
+    print_status(set_printer_status(&file, DEFAULT_STATUS, false)?);
+    if let Err(e) = read_printer_data(&mut file) {
+        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to read data from {DEV_PATH}: {e}")));
     }
+
+    Ok(())
 }
