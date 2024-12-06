@@ -31,7 +31,7 @@ bitflags! {
     }
 }
 
-/// Builder for USB human interface device (PRINTER) function.
+/// Builder for USB printer function.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct PrinterBuilder {
@@ -78,16 +78,21 @@ impl Function for PrinterFunction {
     }
 }
 
-/// USB human interface device (PRINTER) function.
+/// USB printer function.
 #[derive(Debug)]
 pub struct Printer {
     dir: FunctionDir,
 }
 
 impl Printer {
-    /// Creates a new USB human interface device (PRINTER) builder.
+    /// Creates a new USB printer builder.
     pub fn builder() -> PrinterBuilder {
         PrinterBuilder { pnp_string: None, qlen: None }
+    }
+
+    /// Creates a new USB printer function and handle with f_printer defaults
+    pub fn new(self) -> (Printer, Handle) {
+        Self::builder().build()
     }
 
     /// Access to registration status.
