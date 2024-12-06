@@ -120,19 +120,19 @@ fn main() -> io::Result<()> {
 
     // wait for sysfs device to create
     let mut count = 0;
-    let mut sysfs_path = None;
+    let mut dev_path = None;
     println!("Attempt open device path: {}", DEV_PATH);
     while count < 5 {
         std::thread::sleep(std::time::Duration::from_secs(1));
         // test open access
-        if let Ok(_) = OpenOptions::new().read(true).write(true).open(&SYSFS_PATH) {
-            sysfs_path = Some(PathBuf::from(SYSFS_PATH));
+        if let Ok(_) = OpenOptions::new().read(true).write(true).open(&DEV_PATH) {
+            dev_path = Some(PathBuf::from(DEV_PATH));
             break;
         }
         count += 1;
     }
 
-    match sysfs_path {
+    match dev_path {
         Some(pp) => {
             let mut file = OpenOptions::new().read(true).write(true).open(&pp)?;
 
@@ -146,9 +146,8 @@ fn main() -> io::Result<()> {
                 Ok(())
             }
         }
-        None => Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Printer {} not found or cannot open", SYSFS_PATH),
-        )),
+        _ => {
+            Err(io::Error::new(io::ErrorKind::NotFound, format!("Printer {} not found or cannot open", DEV_PATH)))
+        }
     }
 }
