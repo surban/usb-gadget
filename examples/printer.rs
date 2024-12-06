@@ -121,7 +121,7 @@ fn main() -> io::Result<()> {
     // wait for sysfs device to create
     let mut count = 0;
     let mut sysfs_path = None;
-    println!("Attempt open sysfs path: {}", SYSFS_PATH);
+    println!("Attempt open device path: {}", DEV_PATH);
     while count < 5 {
         std::thread::sleep(std::time::Duration::from_secs(1));
         // test open access
