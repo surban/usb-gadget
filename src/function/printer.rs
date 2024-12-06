@@ -2,7 +2,7 @@
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_PRINTER` must be enabled.
 //!
-//! A sysfs file at /dev/g_printerN will be created for each instance of the function, where N instance number. See './examples/printer.rs' for an example.
+//! A device file at /dev/g_printerN will be created for each instance of the function, where N instance number. See 'examples/printer.rs' for an example.
 
 use bitflags::bitflags;
 use std::{ffi::OsString, io::Result};
