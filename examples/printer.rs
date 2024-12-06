@@ -1,6 +1,6 @@
 //! Printer example userspace application based on [prn_example](https://docs.kernel.org/6.6/usb/gadget_printer.html#example-code)
 //!
-//! Creates and binds a printer gadget function, then reads data from the sysfs file created by the gadget to stdout. Will exit after printing a set number of pages.
+//! Creates and binds a printer gadget function, then reads data from the device file created by the gadget to stdout. Will exit after printing a set number of pages.
 use nix::{ioctl_read, ioctl_readwrite};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
