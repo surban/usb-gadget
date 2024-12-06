@@ -1130,13 +1130,13 @@ pub struct CtrlSender<'a> {
     custom: &'a mut Custom,
 }
 
-impl<'a> fmt::Debug for CtrlSender<'a> {
+impl fmt::Debug for CtrlSender<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("CtrlSender").field("ctrl_req", &self.ctrl_req).finish()
     }
 }
 
-impl<'a> CtrlSender<'a> {
+impl CtrlSender<'_> {
     /// The control request.
     pub const fn ctrl_req(&self) -> &CtrlReq {
         &self.ctrl_req
@@ -1180,7 +1180,7 @@ impl<'a> CtrlSender<'a> {
     }
 }
 
-impl<'a> Drop for CtrlSender<'a> {
+impl Drop for CtrlSender<'_> {
     fn drop(&mut self) {
         if self.custom.setup_event.is_some() {
             let _ = self.do_halt();
@@ -1196,13 +1196,13 @@ pub struct CtrlReceiver<'a> {
     custom: &'a mut Custom,
 }
 
-impl<'a> fmt::Debug for CtrlReceiver<'a> {
+impl fmt::Debug for CtrlReceiver<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("CtrlReceiver").field("ctrl_req", &self.ctrl_req).finish()
     }
 }
 
-impl<'a> CtrlReceiver<'a> {
+impl CtrlReceiver<'_> {
     /// The control request.
     pub const fn ctrl_req(&self) -> &CtrlReq {
         &self.ctrl_req
@@ -1253,7 +1253,7 @@ impl<'a> CtrlReceiver<'a> {
     }
 }
 
-impl<'a> Drop for CtrlReceiver<'a> {
+impl Drop for CtrlReceiver<'_> {
     fn drop(&mut self) {
         if self.custom.setup_event.is_some() {
             let _ = self.do_halt();

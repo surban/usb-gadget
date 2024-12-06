@@ -180,7 +180,7 @@ impl UvcFrame {
     }
 
     fn path(&self) -> PathBuf {
-        self.format.group_path().join(&self.dir_name())
+        self.format.group_path().join(self.dir_name())
     }
 
     /// Create a new UVC frame with the specified properties.

@@ -1,5 +1,4 @@
 {
-    "rust-analyzer.showUnlinkedFileNotification": false,
     "files.exclude": {
         "target/": true,
     },
@@ -33,4 +32,6 @@
         }
     ],
     "rust-analyzer.cargo.features": "all",
+    "rust-analyzer.check.command": "clippy",
+    "rust-analyzer.showUnlinkedFileNotification": false,
 }

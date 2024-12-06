@@ -208,7 +208,7 @@ impl FunctionDir {
     /// Create a subdirectory and its parent directories.
     pub fn create_dir_all(&self, name: impl AsRef<Path>) -> Result<()> {
         let path = self.property_path(name)?;
-        log::debug!("creating directorys {}", path.display());
+        log::debug!("creating directories {}", path.display());
         fs::create_dir_all(path)
     }
 
