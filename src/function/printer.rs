@@ -20,7 +20,7 @@ pub const GADGET_SET_PRINTER_STATUS: u8 = 0x22;
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     #[non_exhaustive]
-    /// Printer status flags https://www.usb.org/sites/default/files/usbprint11a021811.pdf
+    /// [Printer status flags](https://www.usb.org/sites/default/files/usbprint11a021811.pdf)
     pub struct StatusFlags: u8 {
         /// Printer not in error state
         const NOT_ERROR = (1 << 3);
