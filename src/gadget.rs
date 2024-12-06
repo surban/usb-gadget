@@ -51,7 +51,8 @@ impl Class {
         Self::new(Self::VENDOR_SPECIFIC, sub_class, protocol)
     }
 
-    /// Indicates that class information should be determined from the interface descriptors in the device.
+    /// Indicates that class information should be determined from the interface descriptors in the
+    /// device.
     ///
     /// Can only be used as device class.
     pub const fn interface_specific() -> Self {

@@ -3,6 +3,8 @@ use_small_heuristics = "Max"
 
 fn_params_layout = "Compressed"
 
-#wrap_comments = true
-#comment_width = 100
+wrap_comments = true
+format_code_in_doc_comments = true
+comment_width = 100
+
 imports_granularity = "Crate"

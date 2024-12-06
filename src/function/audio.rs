@@ -41,7 +41,10 @@ use super::{
 pub struct Channel {
     /// Audio channel mask. Set to 0 to disable the audio endpoint.
     ///
-    /// The audio channel mask is a bit mask of the audio channels. The mask is a 32-bit integer with each bit representing a channel. The least significant bit is channel 1. The mask is used to specify the audio channels that are present in the audio stream. For example, a stereo stream would have a mask of 0x3 (channel 1 and channel 2).
+    /// The audio channel mask is a bit mask of the audio channels. The mask is a 32-bit integer
+    /// with each bit representing a channel. The least significant bit is channel 1. The mask is
+    /// used to specify the audio channels that are present in the audio stream. For example, a
+    /// stereo stream would have a mask of 0x3 (channel 1 and channel 2).
     pub channel_mask: Option<u32>,
     /// Audio sample rate (Hz)
     pub sample_rate: Option<u32>,
@@ -50,7 +53,8 @@ pub struct Channel {
 }
 
 impl Channel {
-    /// Creates a new audio channel with the specified channel mask, sample rate (Hz), and sample size (bytes).
+    /// Creates a new audio channel with the specified channel mask, sample rate (Hz), and sample
+    /// size (bytes).
     pub fn new(channel_mask: u32, sample_rate: u32, sample_size: u32) -> Self {
         Self { channel_mask: Some(channel_mask), sample_rate: Some(sample_rate), sample_size: Some(sample_size) }
     }
@@ -58,7 +62,9 @@ impl Channel {
 
 /// Audio device configuration.
 ///
-/// Fields are optional and will be set to f_uac2 default values if not specified, see drivers/usb/gadget/function/u_uac2.h. Not all fields are supported by all kernels; permission denied errors may occur if unsupported fields are set.
+/// Fields are optional and will be set to f_uac2 default values if not specified, see
+/// drivers/usb/gadget/function/u_uac2.h. Not all fields are supported by all kernels; permission
+/// denied errors may occur if unsupported fields are set.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Uac2Config {
@@ -281,7 +287,8 @@ impl Uac2 {
         Uac2Builder::default()
     }
 
-    /// Creates a new USB Audio Class 2 (UAC2) function with the specified capture and playback channels.
+    /// Creates a new USB Audio Class 2 (UAC2) function with the specified capture and playback
+    /// channels.
     pub fn new(capture: Channel, playback: Channel) -> (Uac2, Handle) {
         let mut builder = Uac2Builder::default();
         builder.capture.channel = capture;

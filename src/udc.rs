@@ -57,7 +57,8 @@ impl Udc {
         Ok(fs::read_to_string(self.dir.join("maximum_speed"))?.trim().parse().unwrap_or_default())
     }
 
-    /// Indicates that this port is the default Host on an OTG session but HNP was used to switch roles.
+    /// Indicates that this port is the default Host on an OTG session but HNP was used to switch
+    /// roles.
     pub fn is_a_peripheral(&self) -> Result<bool> {
         Ok(fs::read_to_string(self.dir.join("is_a_peripheral"))?.trim() != "0")
     }
@@ -79,7 +80,8 @@ impl Udc {
         fs::write(self.dir.join("srp"), "1")
     }
 
-    /// Connect or disconnect data pull-up resistors thus causing a logical connection to or disconnection from the USB host.
+    /// Connect or disconnect data pull-up resistors thus causing a logical connection to or
+    /// disconnection from the USB host.
     pub fn set_soft_connect(&self, connect: bool) -> Result<()> {
         fs::write(self.dir.join("soft_connect"), if connect { "connect" } else { "disconnect" })
     }

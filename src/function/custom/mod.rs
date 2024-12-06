@@ -384,7 +384,8 @@ impl OsExtProp {
     //         Self::new("DefaultIdleState", u32::from(state))
     //     }
     //
-    //     /// Indicate the amount of time in milliseconds to wait before determining that a device is idle.
+    //     /// Indicate the amount of time in milliseconds to wait before determining that a device is
+    //     /// idle.
     //     pub fn default_idle_timeout(timeout_ms: u32) -> Self {
     //         Self::new("DefaultIdleTimeout", timeout_ms)
     //     }
@@ -395,8 +396,8 @@ impl OsExtProp {
     //         Self::new("UserSetDeviceIdleEnabled", u32::from(enabled))
     //     }
     //
-    //     /// Indicate whether to allow the user to control the ability of the device to wake the system
-    //     /// from a low-power state.
+    //     /// Indicate whether to allow the user to control the ability of the device to wake the
+    //     /// system from a low-power state.
     //     pub fn system_wake_enabled(enabled: bool) -> Self {
     //         Self::new("SystemWakeEnabled", u32::from(enabled))
     //     }
@@ -1613,7 +1614,8 @@ impl EndpointReceiver {
 
     /// Receive data synchronously.
     ///
-    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    /// The buffer should have been allocated with the desired capacity using
+    /// [`BytesMut::with_capacity`].
     ///
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch(&mut self, buf: BytesMut) -> Result<BytesMut> {
@@ -1623,7 +1625,8 @@ impl EndpointReceiver {
 
     /// Receive data synchronously with a timeout.
     ///
-    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    /// The buffer should have been allocated with the desired capacity using
+    /// [`BytesMut::with_capacity`].
     ///
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<BytesMut> {
@@ -1641,7 +1644,8 @@ impl EndpointReceiver {
 
     /// Receive data.
     ///
-    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    /// The buffer should have been allocated with the desired capacity using
+    /// [`BytesMut::with_capacity`].
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1653,7 +1657,8 @@ impl EndpointReceiver {
 
     /// Asynchronously receive data.
     ///
-    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    /// The buffer should have been allocated with the desired capacity using
+    /// [`BytesMut::with_capacity`].
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1666,7 +1671,8 @@ impl EndpointReceiver {
 
     /// Receive data with a timeout.
     ///
-    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    /// The buffer should have been allocated with the desired capacity using
+    /// [`BytesMut::with_capacity`].
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1680,7 +1686,8 @@ impl EndpointReceiver {
 
     /// Enqueue the buffer for receiving without waiting for receive queue space.
     ///
-    /// The buffer should have been allocated with the desired capacity using [`BytesMut::with_capacity`].
+    /// The buffer should have been allocated with the desired capacity using
+    /// [`BytesMut::with_capacity`].
     ///
     /// Fails if no receive queue space is available.
     pub fn try_recv(&mut self, buf: BytesMut) -> Result<()> {
@@ -1721,7 +1728,8 @@ impl EndpointReceiver {
         Ok(Some(comp.result()?.try_into().unwrap()))
     }
 
-    /// Asynchronously waits for data to be received into a previously enqueued receive buffer, then returns it.
+    /// Asynchronously waits for data to be received into a previously enqueued receive buffer, then
+    /// returns it.
     ///
     /// `Ok(None)` is returned if no receive buffers are enqueued.
     #[cfg(feature = "tokio")]

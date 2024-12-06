@@ -192,7 +192,8 @@ impl Msd {
         self.dir.status()
     }
 
-    /// Forcibly detach the backing file from the LUN, regardless of whether the host has allowed it.
+    /// Forcibly detach the backing file from the LUN, regardless of whether the host has allowed
+    /// it.
     pub fn force_eject(&self, lun: usize) -> Result<()> {
         let lun_dir_name = Lun::dir_name(lun);
         self.dir.write(format!("{lun_dir_name}/forced_eject"), "1")

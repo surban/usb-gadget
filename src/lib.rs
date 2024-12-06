@@ -18,7 +18,6 @@
 //! Start defining an USB gadget by calling [`Gadget::new`].
 //! When the gadget is fully specified, call [`Gadget::bind`] to register it with
 //! a [USB device controller (UDC)](Udc).
-//!
 
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]

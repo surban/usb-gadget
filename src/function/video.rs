@@ -1,6 +1,9 @@
 //! USB Video Class (UVC) function.
 //!
-//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UVC` must be enabled. It must be paired with a userspace program that responds to UVC control requests and fills buffers to be queued to the V4L2 device that the driver creates. For example https://gitlab.freedesktop.org/camera/uvc-gadget.
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UVC` must be enabled.
+//! It must be paired with a userspace program that responds to UVC control requests
+//! and fills buffers to be queued to the V4L2 device that the driver creates.
+//! See [example](https://gitlab.freedesktop.org/camera/uvc-gadget).
 //!
 //! # Example
 //!
@@ -37,7 +40,9 @@
 //!     video.status()
 //! );
 //! ```
-//! The gadget will bind won't enumaterate with host unless a userspace program (such as uvc-gadget) is running and responding to UVC control requests.
+//! The gadget will bind won't enumaterate with host unless a userspace program (such as uvc-gadget)
+//! is running and responding to UVC control requests.
+
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
@@ -59,7 +64,8 @@ pub(crate) fn driver() -> &'static OsStr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum Format {
-    /// YUYV format [Packed YUV formats](https://docs.kernel.org/6.12/userspace-api/media/v4l/pixfmt-packed-yuv.html). Currently only uncompressed format supported.
+    /// YUYV format [Packed YUV formats](https://docs.kernel.org/6.12/userspace-api/media/v4l/pixfmt-packed-yuv.html).
+    /// Currently only uncompressed format supported.
     Yuyv,
     /// MJPEG compressed format.
     Mjpeg,
@@ -197,7 +203,8 @@ pub struct UvcBuilder {
     pub streaming_interval: Option<u8>,
     /// bMaxBurst for super speed companion descriptor. Valid values are 1-15.
     pub streaming_max_burst: Option<u8>,
-    /// Maximum packet size this endpoint is capable of sending or receiving when this configuration is selected. Valid values are 1024/2048/3072.
+    /// Maximum packet size this endpoint is capable of sending or receiving when this configuration
+    /// is selected. Valid values are 1024/2048/3072.
     pub streaming_max_packet: Option<u32>,
     /// Video device interface name
     pub function_name: Option<String>,
