@@ -179,7 +179,7 @@ pub struct Config {
     /// Configuration description string.
     pub description: HashMap<Language, String>,
     /// Functions, i.e. USB interfaces, present in this configuration.
-    pub functions: HashSet<function::Handle>,
+    pub functions: Vec<function::Handle>,
 }
 
 impl Config {
@@ -203,7 +203,7 @@ impl Config {
 
     /// Adds a USB function (interface) to this configuration.
     pub fn add_function(&mut self, function_handle: function::Handle) {
-        self.functions.insert(function_handle);
+        self.functions.push(function_handle);
     }
 
     /// Adds a USB function (interface) to this configuration.
