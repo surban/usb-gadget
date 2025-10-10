@@ -983,7 +983,7 @@ impl Custom {
     }
 
     /// Blocking read event.
-    fn read_event(&mut self) -> Result<Event> {
+    fn read_event(&'_ mut self) -> Result<Event<'_>> {
         let mut ep0 = self.ep0()?;
 
         let mut buf = [0; ffs::Event::SIZE];
@@ -1026,7 +1026,7 @@ impl Custom {
     /// Wait for an event and returns it.
     ///
     /// Blocks until an event becomes available.
-    pub fn event(&mut self) -> Result<Event> {
+    pub fn event(&'_ mut self) -> Result<Event<'_>> {
         self.clear_prev_event()?;
         self.read_event()
     }
@@ -1034,7 +1034,7 @@ impl Custom {
     /// Wait for an event with a timeout and returns it.
     ///
     /// Blocks until an event becomes available.
-    pub fn event_timeout(&mut self, timeout: Duration) -> Result<Option<Event>> {
+    pub fn event_timeout(&'_ mut self, timeout: Duration) -> Result<Option<Event<'_>>> {
         if self.wait_event_sync(Some(timeout))? {
             Ok(Some(self.read_event()?))
         } else {
@@ -1045,7 +1045,7 @@ impl Custom {
     /// Gets the next event, if available.
     ///
     /// Does not wait for an event to become available.
-    pub fn try_event(&mut self) -> Result<Option<Event>> {
+    pub fn try_event(&'_ mut self) -> Result<Option<Event<'_>>> {
         self.clear_prev_event()?;
 
         if self.has_event() {
@@ -1392,7 +1392,7 @@ pub struct EndpointSender(value::Receiver<EndpointIo>);
 
 impl EndpointSender {
     /// Gets the endpoint control interface.
-    pub fn control(&mut self) -> Result<EndpointControl> {
+    pub fn control(&'_ mut self) -> Result<EndpointControl<'_>> {
         let io = self.0.get()?;
         Ok(EndpointControl::new(io, Direction::DeviceToHost))
     }
@@ -1602,7 +1602,7 @@ pub struct EndpointReceiver(value::Receiver<EndpointIo>);
 
 impl EndpointReceiver {
     /// Gets the endpoint control interface.
-    pub fn control(&mut self) -> Result<EndpointControl> {
+    pub fn control(&'_ mut self) -> Result<EndpointControl<'_>> {
         let io = self.0.get()?;
         Ok(EndpointControl::new(io, Direction::HostToDevice))
     }

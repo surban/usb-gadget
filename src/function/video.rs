@@ -157,7 +157,7 @@ impl From<Frame> for UvcFrame {
         UvcFrame {
             width: frame.width,
             height: frame.height,
-            intervals: frame.fps.iter().filter(|i| **i != 0).map(|i| (1_000_000_000 / *i as u32)).collect(),
+            intervals: frame.fps.iter().filter(|i| **i != 0).map(|i| 1_000_000_000 / *i as u32).collect(),
             color_matching: None,
             format: frame.format,
         }
