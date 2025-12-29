@@ -20,7 +20,7 @@
 //! a [USB device controller (UDC)](Udc).
 
 #![warn(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(not(target_os = "linux"))]
 compile_error!("usb_gadget only supports Linux");
