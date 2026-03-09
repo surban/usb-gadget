@@ -7,6 +7,7 @@ use usb_gadget::{
     Class,
 };
 
+#[path = "../common/mod.rs"]
 mod common;
 use common::*;
 
