@@ -1632,9 +1632,12 @@ impl EndpointReceiver {
     pub fn recv_and_fetch_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<BytesMut> {
         self.try_recv(buf)?;
 
-        let res = self.fetch_timeout(timeout);
-        match res {
-            Ok(data) => Ok(data.unwrap()),
+        match self.fetch_timeout(timeout) {
+            Ok(Some(data)) => Ok(data),
+            Ok(None) => {
+                self.cancel()?;
+                Err(Error::new(ErrorKind::TimedOut, "timeout waiting for data to be received"))
+            }
             Err(err) => {
                 self.cancel()?;
                 Err(err)
