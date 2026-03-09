@@ -3,14 +3,16 @@ use common::*;
 
 use usb_gadget::function::hid::Hid;
 
+const HID_SUBCLASS: u8 = 0;
+const HID_PROTOCOL: u8 = 2;
+
 #[test]
 fn hid() {
     init();
 
-    // Keyboard HID description
     let mut builder = Hid::builder();
-    builder.protocol = 1;
-    builder.sub_class = 1;
+    builder.protocol = HID_PROTOCOL;
+    builder.sub_class = HID_SUBCLASS;
     builder.report_len = 8;
     builder.report_desc = vec![
         0x05, 0x01, 0x09, 0x06, 0xa1, 0x01, 0x05, 0x07, 0x19, 0xe0, 0x29, 0xe7, 0x15, 0x00, 0x25, 0x01, 0x75,
@@ -23,6 +25,21 @@ fn hid() {
     let reg = reg(func);
 
     println!("HID device {:?} at {}", hid.device().unwrap(), hid.status().path().unwrap().display());
+
+    check_host(|_device, cfg| {
+        let intf = cfg.interface_alt_settings().find(|desc| desc.class() == 3);
+        assert!(intf.is_some(), "no HID interface (class 3) found on host");
+        let intf = intf.unwrap();
+        assert_eq!(intf.subclass(), HID_SUBCLASS, "HID subclass mismatch");
+        assert_eq!(intf.protocol(), HID_PROTOCOL, "HID protocol mismatch");
+        println!(
+            "HID interface {}: class={}, subclass={}, protocol={}",
+            intf.interface_number(),
+            intf.class(),
+            intf.subclass(),
+            intf.protocol(),
+        );
+    });
 
     unreg(reg).unwrap();
 }

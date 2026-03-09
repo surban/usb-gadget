@@ -22,5 +22,19 @@ fn other_ecm() {
     let dev_addr2 = String::from_utf8_lossy(&dev_addr2).trim().to_string();
     assert_eq!(dev_addr, dev_addr2);
 
+    check_host(|_device, cfg| {
+        // ECM is CDC Ethernet: class 2 (Communications), subclass 6 (Ethernet Networking).
+        let ecm_intf = cfg.interface_alt_settings().find(|desc| desc.class() == 2 && desc.subclass() == 6);
+        assert!(ecm_intf.is_some(), "no CDC ECM interface (class 2, subclass 6) found on host");
+        let ecm_intf = ecm_intf.unwrap();
+        println!(
+            "ECM interface {}: class={}, subclass={}, protocol={}",
+            ecm_intf.interface_number(),
+            ecm_intf.class(),
+            ecm_intf.subclass(),
+            ecm_intf.protocol(),
+        );
+    });
+
     unreg(reg).unwrap();
 }

@@ -21,5 +21,8 @@ fn video() {
 
     println!("UVC video device at {}", video.status().path().unwrap().display());
 
+    // NOTE: UVC gadgets do not enumerate on the host without a user-space
+    // streaming daemon, so host-side verification is skipped here.
+
     unreg(reg).unwrap();
 }

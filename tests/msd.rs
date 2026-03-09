@@ -29,6 +29,26 @@ fn msd() {
 
     println!("MSD device at {}", msd.status().path().unwrap().display());
 
+    check_host(|_device, cfg| {
+        // Mass Storage class 8, subclass 6 (SCSI), protocol 0x50 (Bulk-Only Transport).
+        let intf = cfg.interface_alt_settings().find(|desc| desc.class() == 8);
+        assert!(intf.is_some(), "no Mass Storage interface (class 8) found on host");
+        let intf = intf.unwrap();
+        assert_eq!(intf.subclass(), 6, "MSD subclass mismatch (expected SCSI transparent command set)");
+        assert_eq!(intf.protocol(), 0x50, "MSD protocol mismatch (expected Bulk-Only Transport)");
+        println!(
+            "Mass Storage interface {}: class={}, subclass={}, protocol={}",
+            intf.interface_number(),
+            intf.class(),
+            intf.subclass(),
+            intf.protocol(),
+        );
+
+        // Expect 2 bulk endpoints (IN + OUT).
+        let num_endpoints = intf.num_endpoints();
+        assert_eq!(num_endpoints, 2, "expected 2 bulk endpoints, found {num_endpoints}");
+    });
+
     sleep(Duration::from_secs(1));
 
     msd.force_eject(0).unwrap();
