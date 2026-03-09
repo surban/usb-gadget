@@ -369,7 +369,7 @@ impl OsExtProp {
 
     /// Sets the device interface GUID.
     pub fn device_interface_guid(guid: Uuid) -> Self {
-        Self::new("DeviceInterfaceGUID", guid.to_string())
+        Self::new("DeviceInterfaceGUID", format!("{{{guid}}}"))
     }
 
     // Unsupported by Linux 6.5
