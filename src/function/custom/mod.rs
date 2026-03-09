@@ -1597,6 +1597,21 @@ impl EndpointSender {
 }
 
 /// USB endpoint from host to device receiver.
+///
+/// # Buffer size and zero-length packets (ZLP)
+///
+/// The USB host uses zero-length packets to signal the end of a transfer whose
+/// total size is a multiple of the maximum packet size (MPS). When the receive
+/// buffer capacity equals the MPS, each USB packet completes one read request,
+/// and a ZLP is delivered as a separate zero-length completion.
+///
+/// When the buffer capacity is **larger** than the MPS, the kernel submits a
+/// single USB transfer that spans multiple packets. In this case, a ZLP
+/// terminates the transfer internally and is **not** reported as a separate
+/// event — the read simply completes with fewer bytes than the buffer capacity.
+///
+/// For reliable ZLP detection, use buffers with a capacity equal to the
+/// endpoint's [maximum packet size](Self::max_packet_size).
 #[derive(Debug)]
 pub struct EndpointReceiver(value::Receiver<EndpointIo>);
 
@@ -1616,6 +1631,8 @@ impl EndpointReceiver {
     ///
     /// The buffer should have been allocated with the desired capacity using
     /// [`BytesMut::with_capacity`].
+    /// For reliable zero-length packet detection, use a capacity equal to the
+    /// endpoint's [maximum packet size](Self::max_packet_size).
     ///
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch(&mut self, buf: BytesMut) -> Result<BytesMut> {
@@ -1627,6 +1644,8 @@ impl EndpointReceiver {
     ///
     /// The buffer should have been allocated with the desired capacity using
     /// [`BytesMut::with_capacity`].
+    /// For reliable zero-length packet detection, use a capacity equal to the
+    /// endpoint's [maximum packet size](Self::max_packet_size).
     ///
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch_timeout(&mut self, buf: BytesMut, timeout: Duration) -> Result<BytesMut> {
@@ -1649,6 +1668,8 @@ impl EndpointReceiver {
     ///
     /// The buffer should have been allocated with the desired capacity using
     /// [`BytesMut::with_capacity`].
+    /// For reliable zero-length packet detection, use a capacity equal to the
+    /// endpoint's [maximum packet size](Self::max_packet_size).
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1662,6 +1683,8 @@ impl EndpointReceiver {
     ///
     /// The buffer should have been allocated with the desired capacity using
     /// [`BytesMut::with_capacity`].
+    /// For reliable zero-length packet detection, use a capacity equal to the
+    /// endpoint's [maximum packet size](Self::max_packet_size).
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1676,6 +1699,8 @@ impl EndpointReceiver {
     ///
     /// The buffer should have been allocated with the desired capacity using
     /// [`BytesMut::with_capacity`].
+    /// For reliable zero-length packet detection, use a capacity equal to the
+    /// endpoint's [maximum packet size](Self::max_packet_size).
     ///
     /// Waits for space in the receive queue and enqueues the buffer for receiving data.
     /// Returns received data, if a buffer in the receive queue was filled.
@@ -1691,6 +1716,8 @@ impl EndpointReceiver {
     ///
     /// The buffer should have been allocated with the desired capacity using
     /// [`BytesMut::with_capacity`].
+    /// For reliable zero-length packet detection, use a capacity equal to the
+    /// endpoint's [maximum packet size](Self::max_packet_size).
     ///
     /// Fails if no receive queue space is available.
     pub fn try_recv(&mut self, buf: BytesMut) -> Result<()> {
