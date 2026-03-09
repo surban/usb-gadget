@@ -1,6 +1,10 @@
 //! Host-side example for USB gadget with custom interface.
 
-use std::{io::Read, io::Write, thread, time::Duration};
+use std::{
+    io::{Read, Write},
+    thread,
+    time::Duration,
+};
 
 use nusb::{
     transfer::{Bulk, ControlIn, ControlOut, ControlType, Direction, In, Out, Recipient},
@@ -17,9 +21,7 @@ fn main() {
     let device = device_info.open().wait().expect("failed to open device");
     println!("device opened: {device:?}");
 
-    let cfg = device
-        .active_configuration()
-        .expect("no active configuration");
+    let cfg = device.active_configuration().expect("no active configuration");
 
     let mut my_if = None;
     let mut ep_in_addr = None;
@@ -48,10 +50,7 @@ fn main() {
     let ep_out_addr = ep_out_addr.unwrap();
 
     println!("claiming interface {my_if}");
-    let intf = device
-        .claim_interface(my_if)
-        .wait()
-        .expect("cannot claim interface");
+    let intf = device.claim_interface(my_if).wait().expect("cannot claim interface");
 
     //device.reset().wait().expect("reset failed");
 
@@ -100,12 +99,8 @@ fn main() {
         .expect("control error");
     assert_eq!(&buf, rbuf.as_slice());
 
-    let ep_in = intf
-        .endpoint::<Bulk, In>(ep_in_addr)
-        .expect("cannot open IN endpoint");
-    let ep_out = intf
-        .endpoint::<Bulk, Out>(ep_out_addr)
-        .expect("cannot open OUT endpoint");
+    let ep_in = intf.endpoint::<Bulk, In>(ep_in_addr).expect("cannot open IN endpoint");
+    let ep_out = intf.endpoint::<Bulk, Out>(ep_out_addr).expect("cannot open OUT endpoint");
 
     thread::scope(|t| {
         t.spawn(|| {
