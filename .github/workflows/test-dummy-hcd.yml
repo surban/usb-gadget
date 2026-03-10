@@ -11,8 +11,9 @@ env:
 
 jobs:
   test-dummy-hcd:
-    name: Tests with dummy_hcd loopback UDC
+    name: Tests with dummy_hcd loopback UDC (QEMU VM)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -20,164 +21,254 @@ jobs:
       - name: Update Rust
         run: rustup update
 
-      - name: Install kernel modules
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-
-          KVER=$(uname -r)
-          echo "Running kernel: $KVER"
-
-          # Install modules-extra for the running (Azure) kernel first.
-          sudo apt-get install -y "linux-modules-extra-${KVER}" || true
-
-          # The Azure kernel is built without CONFIG_USB_GADGET, so
-          # libcomposite / dummy_hcd are not shipped in its modules-extra
-          # package.  Work around this by downloading the *generic* kernel's
-          # modules-extra .deb (same upstream version) and extracting the
-          # USB gadget .ko files into the running kernel's module tree.
-          if ! modinfo libcomposite >/dev/null 2>&1; then
-            echo "libcomposite not found in Azure kernel modules — extracting from generic kernel"
-
-            # Derive the generic kernel version from the Azure one.
-            #   Azure:   6.14.0-1017-azure  →  base 6.14.0
-            #   Generic: 6.14.0-<ABI>-generic
-            BASE_KVER=$(echo "$KVER" | sed 's/-[0-9]*-azure$//')
-            echo "Base kernel version: $BASE_KVER"
-
-            # Find the matching generic modules-extra package.
-            GENERIC_PKG=$(apt-cache search "linux-modules-extra-${BASE_KVER}.*generic" \
-                          | head -1 | awk '{print $1}')
-
-            if [ -z "$GENERIC_PKG" ]; then
-              echo "ERROR: Could not find a generic linux-modules-extra package for ${BASE_KVER}"
-              apt-cache search "linux-modules-extra" | grep generic | head -10
-              exit 1
-            fi
-            echo "Generic package: $GENERIC_PKG"
-
-            # Download (don't install) and extract into a temp directory.
-            cd /tmp
-            apt-get download "$GENERIC_PKG"
-            DEB_FILE=$(ls linux-modules-extra-*generic*.deb | head -1)
-            mkdir -p /tmp/generic-modules
-            dpkg-deb -x "$DEB_FILE" /tmp/generic-modules
-
-            # Find the extracted module tree.
-            GENERIC_MODDIR=$(find /tmp/generic-modules/lib/modules -mindepth 1 -maxdepth 1 -type d | head -1)
-            echo "Generic module dir: $GENERIC_MODDIR"
-
-            # Copy USB gadget modules into the running kernel's module tree.
-            DEST="/lib/modules/${KVER}"
-            if [ -d "$GENERIC_MODDIR/kernel/drivers/usb/gadget" ]; then
-              sudo cp -rv "$GENERIC_MODDIR/kernel/drivers/usb/gadget" "$DEST/kernel/drivers/usb/"
-            fi
-            # Also copy USB common modules if present (e.g. usb-common for OTG).
-            if [ -d "$GENERIC_MODDIR/kernel/drivers/usb/common" ]; then
-              sudo cp -rv "$GENERIC_MODDIR/kernel/drivers/usb/common" "$DEST/kernel/drivers/usb/"
-            fi
-
-            # Rebuild module dependency database.
-            sudo depmod -a "$KVER"
-
-            # Leave a marker so the load step knows to use --force-vermagic.
-            touch /tmp/.usb_gadget_modules_extracted
-
-            echo "Module extraction complete"
-            cd -
-          fi
-
-      - name: Load dummy_hcd and gadget modules
-        run: |
-          # When modules were extracted from the generic kernel, they have a
-          # different vermagic (e.g. 6.14.0-24-generic vs 6.14.0-1017-azure).
-          # Use --force-vermagic so the kernel accepts them.  This is safe
-          # because both kernels share the same upstream base version and ABI.
-          FORCE=""
-          if [ -f /tmp/.usb_gadget_modules_extracted ]; then
-            FORCE="--force-vermagic"
-            echo "Using --force-vermagic for cross-kernel modules"
-          fi
-
-          # Load configfs (usually already present, but be safe).
-          sudo modprobe $FORCE configfs
-
-          # Load the USB gadget core and configfs integration.
-          sudo modprobe $FORCE libcomposite
-
-          # Load dummy_hcd with SuperSpeed support for throughput benchmarks.
-          sudo modprobe $FORCE dummy_hcd is_super_speed=Y
-
-          # Load all the USB gadget function modules the test suite needs.
-          sudo modprobe $FORCE usb_f_fs           || echo "Warning: usb_f_fs not available"
-          sudo modprobe $FORCE usb_f_acm          || echo "Warning: usb_f_acm not available"
-          sudo modprobe $FORCE usb_f_serial       || sudo modprobe $FORCE usb_f_gser || echo "Warning: usb_f_serial/usb_f_gser not available"
-          sudo modprobe $FORCE usb_f_ecm          || echo "Warning: usb_f_ecm not available"
-          sudo modprobe $FORCE usb_f_eem          || echo "Warning: usb_f_eem not available"
-          sudo modprobe $FORCE usb_f_ncm          || echo "Warning: usb_f_ncm not available"
-          sudo modprobe $FORCE usb_f_rndis        || echo "Warning: usb_f_rndis not available"
-          sudo modprobe $FORCE usb_f_ecm_subset   || sudo modprobe $FORCE usb_f_subset || echo "Warning: usb_f_ecm_subset/usb_f_subset not available"
-          sudo modprobe $FORCE usb_f_hid          || echo "Warning: usb_f_hid not available"
-          sudo modprobe $FORCE usb_f_mass_storage || echo "Warning: usb_f_mass_storage not available"
-          sudo modprobe $FORCE usb_f_printer      || echo "Warning: usb_f_printer not available"
-          sudo modprobe $FORCE usb_f_midi         || echo "Warning: usb_f_midi not available"
-          sudo modprobe $FORCE usb_f_uac2         || echo "Warning: usb_f_uac2 not available"
-          sudo modprobe $FORCE usb_f_uvc          || echo "Warning: usb_f_uvc not available"
-
-      - name: Verify dummy_hcd is loaded
-        run: |
-          echo "=== Loaded USB gadget modules ==="
-          lsmod | grep -E 'dummy_hcd|libcomposite|usb_f_|configfs' || true
-          echo ""
-
-          echo "=== UDC devices ==="
-          ls -la /sys/class/udc/ || true
-          echo ""
-
-          # Verify at least one UDC is present.
-          if [ -z "$(ls /sys/class/udc/ 2>/dev/null)" ]; then
-            echo "ERROR: No UDC found after loading dummy_hcd"
-            exit 1
-          fi
-
-          echo "=== UDC details ==="
-          for udc in /sys/class/udc/*; do
-            echo "UDC: $(basename $udc)"
-            echo "  max_speed: $(cat $udc/max_speed 2>/dev/null || echo 'N/A')"
-            echo "  current_speed: $(cat $udc/current_speed 2>/dev/null || echo 'N/A')"
-            driver=$(readlink $udc/device/driver 2>/dev/null | xargs basename 2>/dev/null || echo 'N/A')
-            echo "  driver: $driver"
-          done
-
-          echo ""
-          echo "=== configfs mounts ==="
-          mount | grep configfs || true
-
       - name: Build (release, all features)
         run: cargo build --release --all-features --all-targets
 
-      - name: Run tests (release)
+      - name: Install QEMU and tooling
         run: |
-          # Run all tests in release mode as root.
-          # Release mode is needed for the throughput benchmark floor assertions.
-          # Do NOT set SKIP_HOST — dummy_hcd provides both device and host sides
-          # in the same kernel, so host-side verification works.
-          sudo -E env "PATH=$PATH" \
-            "HOME=$HOME" \
-            "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
-            "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" \
-            RUST_LOG=info \
-            RUST_BACKTRACE=1 \
-            cargo test --release --all-features -- --nocapture --test-threads=1
-        timeout-minutes: 10
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 qemu-utils cloud-image-utils \
+            e2fsprogs sshpass
+
+      - name: Download and prepare VM image
+        run: |
+          set -euo pipefail
+
+          # Ubuntu Noble 24.04 cloud image — its generic kernel ships with
+          # CONFIG_USB_GADGET, dummy_hcd, libcomposite, and all usb_f_*
+          # drivers that the Azure kernel lacks.
+          RELEASE=noble
+          IMG_URL="https://cloud-images.ubuntu.com/${RELEASE}/current/${RELEASE}-server-cloudimg-amd64.img"
+          echo "Downloading cloud image from ${IMG_URL} ..."
+          wget -q -O /tmp/base.qcow2 "$IMG_URL"
+
+          # Resize so there is room for kernel modules and our workspace.
+          qemu-img resize /tmp/base.qcow2 16G
+
+      - name: Create cloud-init seed image
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ci-data
+
+          cat > /tmp/ci-data/meta-data <<'CIEOF'
+          instance-id: usb-gadget-ci
+          local-hostname: usb-gadget-ci
+          CIEOF
+
+          cat > /tmp/ci-data/user-data <<'CIEOF'
+          #cloud-config
+          password: ubuntu
+          chpasswd:
+            expire: false
+          ssh_pwauth: true
+          runcmd:
+            - apt-get update -y
+            - DEBIAN_FRONTEND=noninteractive apt-get install -y linux-modules-extra-$(uname -r) || true
+            - modprobe configfs
+            - modprobe libcomposite
+            - modprobe dummy_hcd is_super_speed=Y
+            - modprobe usb_f_fs           || true
+            - modprobe usb_f_acm          || true
+            - modprobe usb_f_serial       || modprobe usb_f_gser || true
+            - modprobe usb_f_ecm          || true
+            - modprobe usb_f_eem          || true
+            - modprobe usb_f_ncm          || true
+            - modprobe usb_f_rndis        || true
+            - modprobe usb_f_ecm_subset   || modprobe usb_f_subset || true
+            - modprobe usb_f_hid          || true
+            - modprobe usb_f_mass_storage || true
+            - modprobe usb_f_printer      || true
+            - modprobe usb_f_midi         || true
+            - modprobe usb_f_uac2         || true
+            - modprobe usb_f_uvc          || true
+            - touch /run/cloud-init-done
+          CIEOF
+
+          # The heredoc is indented by 10 spaces inside the YAML block scalar.
+          # Strip that leading whitespace so cloud-init sees valid YAML.
+          sed -i 's/^          //' /tmp/ci-data/meta-data /tmp/ci-data/user-data
+
+          cloud-localds /tmp/seed.img /tmp/ci-data/user-data /tmp/ci-data/meta-data
+
+      - name: Pack workspace into a data disk
+        run: |
+          set -euo pipefail
+
+          # Archive the full project including pre-built release artefacts so
+          # that `cargo test` inside the VM is essentially free (same host
+          # triple, artefacts are up-to-date).  Only strip .git to save space.
+          tar cf /tmp/workspace.tar \
+            --exclude='.git' \
+            -C "$GITHUB_WORKSPACE" .
+
+          # Create a raw ext4 image large enough for the archive.
+          ARCHIVE_BYTES=$(stat -c%s /tmp/workspace.tar)
+          ARCHIVE_SIZE_MB=$(( ARCHIVE_BYTES / 1048576 + 512 ))
+          echo "Archive is ${ARCHIVE_BYTES} bytes, creating ${ARCHIVE_SIZE_MB} MiB data disk"
+
+          dd if=/dev/zero of=/tmp/data.img bs=1M count="$ARCHIVE_SIZE_MB"
+          mkfs.ext4 -q -F /tmp/data.img
+
+          MOUNT_DIR=$(mktemp -d)
+          sudo mount -o loop /tmp/data.img "$MOUNT_DIR"
+          sudo mkdir -p "$MOUNT_DIR/workspace"
+          sudo tar xf /tmp/workspace.tar -C "$MOUNT_DIR/workspace"
+          sudo umount "$MOUNT_DIR"
+          rmdir "$MOUNT_DIR"
+          rm -f /tmp/workspace.tar
+
+      - name: Boot QEMU VM
+        run: |
+          set -euo pipefail
+
+          # Launch the VM in the background.
+          #   - KVM when available (GitHub-hosted runners expose /dev/kvm),
+          #     TCG (software emulation) as fallback.
+          #   - 4 vCPUs, 8 GiB RAM — plenty for cargo + tests.
+          #   - Three virtio disks: root (cloud image), seed (cloud-init),
+          #     data (our workspace with pre-built artefacts).
+          #   - User-mode networking with SSH port-forward guest:22 -> host:2222.
+          qemu-system-x86_64 \
+            -machine q35,accel=kvm:tcg \
+            -cpu max \
+            -smp 4 \
+            -m 8G \
+            -nographic \
+            -drive file=/tmp/base.qcow2,format=qcow2,if=virtio,cache=unsafe \
+            -drive file=/tmp/seed.img,format=raw,if=virtio,readonly=on \
+            -drive file=/tmp/data.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+            -device virtio-net-pci,netdev=net0 \
+            </dev/null >/tmp/qemu-console.log 2>&1 &
+          echo $! > /tmp/qemu.pid
+          echo "QEMU started with PID $(cat /tmp/qemu.pid)"
+
+      - name: Wait for VM to be ready
+        run: |
+          set -euo pipefail
+
+          SSH="sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 -p 2222 ubuntu@localhost"
+
+          echo "Waiting for VM to boot and cloud-init to finish ..."
+          for i in $(seq 1 180); do
+            if $SSH "test -f /run/cloud-init-done" 2>/dev/null; then
+              echo "VM is ready after ~${i}s"
+              break
+            fi
+            if [ "$i" -eq 180 ]; then
+              echo "ERROR: VM did not become ready within 180 seconds"
+              echo ""
+              echo "=== QEMU console log (last 100 lines) ==="
+              tail -100 /tmp/qemu-console.log 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Verify VM environment
+        run: |
+          set -euo pipefail
+
+          vm() {
+            sshpass -p ubuntu ssh \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -o LogLevel=ERROR \
+              -p 2222 ubuntu@localhost -- "$@"
+          }
+
+          echo "=== VM kernel ==="
+          vm uname -a
+
+          echo ""
+          echo "=== Loaded USB gadget modules ==="
+          vm lsmod | grep -E 'dummy_hcd|libcomposite|usb_f_|configfs' || true
+
+          echo ""
+          echo "=== UDC devices ==="
+          vm ls -la /sys/class/udc/ || true
+
+          if ! vm "ls /sys/class/udc/ 2>/dev/null | grep -q ."; then
+            echo "ERROR: No UDC found in VM after loading dummy_hcd"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== UDC details ==="
+          vm bash -c 'for udc in /sys/class/udc/*; do
+            echo "UDC: $(basename "$udc")"
+            echo "  max_speed: $(cat "$udc/max_speed" 2>/dev/null || echo N/A)"
+            echo "  current_speed: $(cat "$udc/current_speed" 2>/dev/null || echo N/A)"
+            driver=$(readlink "$udc/device/driver" 2>/dev/null | xargs basename 2>/dev/null || echo N/A)
+            echo "  driver: $driver"
+          done'
+
+          echo ""
+          echo "=== configfs mounts ==="
+          vm mount | grep configfs || true
+
+      - name: Run tests inside VM
+        run: |
+          set -euo pipefail
+
+          vm() {
+            sshpass -p ubuntu ssh \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -o LogLevel=ERROR \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=12 \
+              -p 2222 ubuntu@localhost -- "$@"
+          }
+
+          # Mount the data disk containing the pre-built workspace.
+          echo "Mounting workspace disk ..."
+          vm "sudo mkdir -p /mnt/data && sudo mount /dev/vdc /mnt/data && sudo chown -R ubuntu:ubuntu /mnt/data"
+
+          # Install Rust inside the VM.  The minimal profile is enough — we
+          # only need cargo + rustc to drive `cargo test`, and all artefacts
+          # are already compiled on the host.
+          echo "Installing Rust toolchain in VM ..."
+          vm 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal 2>&1 | tail -5'
+
+          # Run the full test suite as root in release mode.
+          # - Release mode is required for the throughput benchmark floor assertions.
+          # - dummy_hcd provides both device and host sides in the same kernel,
+          #   so we do NOT set SKIP_HOST.
+          # - --test-threads=1: gadget tests share a single UDC and must not overlap.
+          # - The host-built artefacts under target/ are reused; cargo only
+          #   needs to check freshness and link, which takes seconds.
+          echo ""
+          echo "=== Running tests ==="
+          vm bash -c 'cd /mnt/data/workspace && \
+            source "$HOME/.cargo/env" && \
+            sudo -E env \
+              "PATH=$PATH" \
+              "HOME=$HOME" \
+              "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
+              "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" \
+              RUST_LOG=info \
+              RUST_BACKTRACE=1 \
+              cargo test --release --all-features -- --nocapture --test-threads=1'
+        timeout-minutes: 15
 
       - name: Cleanup
         if: always()
         run: |
-          # Remove any leftover gadgets.
-          for gadget in /sys/kernel/config/usb_gadget/*/; do
-            if [ -d "$gadget" ]; then
-              echo "" | sudo tee "${gadget}UDC" 2>/dev/null || true
-            fi
-          done
-          sudo modprobe -r dummy_hcd 2>/dev/null || true
+          if [ -f /tmp/qemu.pid ]; then
+            QEMU_PID=$(cat /tmp/qemu.pid)
+            echo "Stopping QEMU (PID ${QEMU_PID}) ..."
+            kill "$QEMU_PID" 2>/dev/null || true
+            for i in $(seq 1 10); do
+              kill -0 "$QEMU_PID" 2>/dev/null || break
+              sleep 1
+            done
+            kill -9 "$QEMU_PID" 2>/dev/null || true
+          fi
+          if [ -f /tmp/qemu-console.log ]; then
+            echo ""
+            echo "=== QEMU console log (last 80 lines) ==="
+            tail -80 /tmp/qemu-console.log || true
+          fi
