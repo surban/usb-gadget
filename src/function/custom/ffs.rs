@@ -2,22 +2,24 @@
 
 use bitflags::bitflags;
 use byteorder::{ReadBytesExt, WriteBytesExt, LE};
-use nix::{
-    ioctl_none, ioctl_read, ioctl_write_int_bad,
-    mount::{MntFlags, MsFlags},
-    request_code_none,
+use rustix::{
+    ioctl::{self, opcode},
+    mount::{MountFlags, UnmountFlags},
 };
 use std::{
     collections::HashMap,
-    ffi::OsStr,
+    ffi::{c_int, CStr, CString, OsStr},
     fmt,
     io::{ErrorKind, Read, Write},
     num::TryFromIntError,
-    os::fd::RawFd,
+    os::fd::{BorrowedFd, RawFd},
     path::Path,
 };
 
-use crate::{linux_version, Language};
+use crate::{
+    ioctl::{IntReturnInt, ReturnInt},
+    linux_version, Language,
+};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -556,7 +558,7 @@ impl Event {
     }
 }
 
-pub const FS_TYPE: &str = "functionfs";
+pub const FS_TYPE: &CStr = c"functionfs";
 
 /// FunctionFS mount options.
 #[derive(Debug, Clone, Default)]
@@ -597,28 +599,45 @@ impl MountOptions {
 }
 
 pub fn mount(instance: &OsStr, target: &Path, opts: &MountOptions) -> std::io::Result<()> {
-    let instance = instance.to_os_string();
-    let target = target.to_path_buf();
-    nix::mount::mount(
-        Some(instance.as_os_str()),
-        &target,
-        Some(FS_TYPE),
-        MsFlags::empty(),
-        Some(opts.to_mount_data().as_str()),
-    )?;
+    let data = CString::new(opts.to_mount_data()).unwrap();
+    rustix::mount::mount(instance, target, FS_TYPE, MountFlags::empty(), &*data)?;
     Ok(())
 }
 
 pub fn umount(target: &Path, lazy: bool) -> std::io::Result<()> {
-    let target = target.to_path_buf();
-    nix::mount::umount2(&target, if lazy { MntFlags::MNT_DETACH } else { MntFlags::empty() })?;
+    let flags = if lazy { UnmountFlags::DETACH } else { UnmountFlags::empty() };
+    rustix::mount::unmount(target, flags)?;
     Ok(())
 }
 
-ioctl_none!(fifo_status, 'g', 1);
-ioctl_none!(fifo_flush, 'g', 2);
-ioctl_none!(clear_halt, 'g', 3);
+// --- FunctionFS ioctls ---
 
-ioctl_write_int_bad!(interface_revmap, request_code_none!('g', 128));
-ioctl_none!(endpoint_revmap, 'g', 129);
-ioctl_read!(endpoint_desc, 'g', 130, [u8; EndpointDesc::AUDIO_SIZE]);
+pub fn fifo_status(fd: BorrowedFd<'_>) -> std::io::Result<c_int> {
+    Ok(unsafe { ioctl::ioctl(fd, ReturnInt::<{ opcode::none(b'g', 1) }>::new()) }?)
+}
+
+pub fn fifo_flush(fd: BorrowedFd<'_>) -> std::io::Result<c_int> {
+    Ok(unsafe { ioctl::ioctl(fd, ReturnInt::<{ opcode::none(b'g', 2) }>::new()) }?)
+}
+
+pub fn clear_halt(fd: BorrowedFd<'_>) -> std::io::Result<c_int> {
+    Ok(unsafe { ioctl::ioctl(fd, ReturnInt::<{ opcode::none(b'g', 3) }>::new()) }?)
+}
+
+pub fn interface_revmap(fd: BorrowedFd<'_>, val: c_int) -> std::io::Result<c_int> {
+    Ok(unsafe { ioctl::ioctl(fd, IntReturnInt::<{ opcode::none(b'g', 128) }>::new(val as usize)) }?)
+}
+
+pub fn endpoint_revmap(fd: BorrowedFd<'_>) -> std::io::Result<c_int> {
+    Ok(unsafe { ioctl::ioctl(fd, ReturnInt::<{ opcode::none(b'g', 129) }>::new()) }?)
+}
+
+pub fn endpoint_desc(fd: BorrowedFd<'_>, buf: &mut [u8; EndpointDesc::AUDIO_SIZE]) -> std::io::Result<()> {
+    unsafe {
+        ioctl::ioctl(
+            fd,
+            ioctl::Updater::<{ opcode::read::<[u8; EndpointDesc::AUDIO_SIZE]>(b'g', 130) }, _>::new(buf),
+        )
+    }?;
+    Ok(())
+}

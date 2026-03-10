@@ -3,11 +3,10 @@
 //! Creates and binds a printer gadget function, then reads data from the device file created by the
 //! gadget to stdout. Will exit after printing a set number of pages.
 
-use nix::{ioctl_read, ioctl_readwrite};
+use rustix::ioctl::{self, opcode};
 use std::{
     fs::{File, OpenOptions},
     io::{self, Read, Write},
-    os::unix::io::AsRawFd,
 };
 
 use usb_gadget::{
@@ -26,9 +25,25 @@ const PRINT_EXIT_COUNT: u8 = 1;
 const DEFAULT_STATUS: StatusFlags =
     StatusFlags::from_bits_truncate(StatusFlags::NOT_ERROR.bits() | StatusFlags::SELECTED.bits());
 
-// ioctl read/write for printer status
-ioctl_read!(ioctl_read_printer_status, GADGET_IOC_MAGIC, GADGET_GET_PRINTER_STATUS, u8);
-ioctl_readwrite!(ioctl_write_printer_status, GADGET_IOC_MAGIC, GADGET_SET_PRINTER_STATUS, u8);
+fn ioctl_read_printer_status(file: &File) -> io::Result<u8> {
+    let getter = unsafe {
+        ioctl::Getter::<{ opcode::read::<u8>(GADGET_IOC_MAGIC, GADGET_GET_PRINTER_STATUS) }, u8>::new()
+    };
+    Ok(unsafe { ioctl::ioctl(file, getter) }?)
+}
+
+fn ioctl_write_printer_status(file: &File, status: u8) -> io::Result<()> {
+    let mut value = status;
+    unsafe {
+        ioctl::ioctl(
+            file,
+            ioctl::Updater::<{ opcode::read_write::<u8>(GADGET_IOC_MAGIC, GADGET_SET_PRINTER_STATUS) }, _>::new(
+                &mut value,
+            ),
+        )
+    }?;
+    Ok(())
+}
 
 fn create_printer_gadget() -> io::Result<RegGadget> {
     usb_gadget::remove_all().expect("cannot remove all gadgets");
@@ -81,15 +96,14 @@ fn set_printer_status(file: &File, flags: StatusFlags, clear: bool) -> io::Resul
     } else {
         status.insert(flags);
     }
-    let mut bits = status.bits();
+    let bits = status.bits();
     log::debug!("Setting printer status: {:08b}", bits);
-    unsafe { ioctl_write_printer_status(file.as_raw_fd(), &mut bits) }?;
+    ioctl_write_printer_status(file, bits)?;
     Ok(StatusFlags::from_bits_truncate(bits))
 }
 
 fn get_printer_status(file: &File) -> io::Result<StatusFlags> {
-    let mut status = 0;
-    unsafe { ioctl_read_printer_status(file.as_raw_fd(), &mut status) }?;
+    let status = ioctl_read_printer_status(file)?;
     log::debug!("Got printer status: {:08b}", status);
     let status = StatusFlags::from_bits_truncate(status);
     Ok(status)
@@ -136,7 +150,7 @@ fn main() -> io::Result<()> {
             Err(err) => {
                 return Err(io::Error::new(
                     io::ErrorKind::NotFound,
-                    format!("Printer {DEV_PATH} not found or cannot open: {err}",),
+                    format!("Printer {DEV_PATH} not found or cannot open: {err}"),
                 ))
             }
         }

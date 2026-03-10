@@ -6,7 +6,7 @@ keywords = ["usb", "gadget", "peripheral", "configfs", "functionfs"]
 license = "Apache-2.0"
 repository = "https://github.com/surban/usb-gadget"
 authors = ["Sebastian Urban <surban@surban.net>", "usb-gadget authors"]
-rust-version = "1.73"
+rust-version = "1.77"
 version = "0.7.6"
 edition = "2021"
 
@@ -20,7 +20,7 @@ bytes = "1.4"
 libc = "0.2"
 log = "0.4"
 macaddr = "1.0"
-nix = { version = "0.30", features = ["mount", "event", "ioctl", "poll", "fs"] }
+rustix = { version = "1", features = ["mount", "event", "system"] }
 proc-mounts = "0.3"
 strum = { version = "0.27", features = ["derive"] }
 tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }

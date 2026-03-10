@@ -1,6 +1,6 @@
 //! USB gadget.
 
-use nix::errno::Errno;
+use rustix::io::Errno;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{OsStr, OsString},
@@ -522,7 +522,7 @@ impl RegGadget {
 
         match fs::write(self.dir.join("UDC"), name.as_bytes()) {
             Ok(()) => (),
-            Err(err) if udc.is_none() && err.raw_os_error() == Some(Errno::ENODEV as i32) => (),
+            Err(err) if udc.is_none() && err.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => (),
             Err(err) => return Err(err),
         }
 

@@ -1,10 +1,8 @@
 //! Linux-native AIO interface.
 
-use libc::{
-    c_int, c_long, c_uint, c_ulong, syscall, timespec, SYS_io_cancel, SYS_io_destroy, SYS_io_getevents,
-    SYS_io_setup, SYS_io_submit,
-};
+use libc::{syscall, timespec, SYS_io_cancel, SYS_io_destroy, SYS_io_getevents, SYS_io_setup, SYS_io_submit};
 use std::{
+    ffi::{c_int, c_long, c_uint, c_ulong},
     io::{Error, Result},
     os::fd::RawFd,
 };

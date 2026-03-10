@@ -3,8 +3,11 @@
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_FS` must be enabled.
 
 use bytes::{Bytes, BytesMut};
-use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 use proc_mounts::MountIter;
+use rustix::{
+    event::{poll, PollFd, PollFlags},
+    time::Timespec,
+};
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     ffi::{OsStr, OsString},
@@ -892,7 +895,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
     for mount in MountIter::new()? {
         let Ok(mount) = mount else { continue };
 
-        if mount.fstype == ffs::FS_TYPE && mount.source == instance {
+        if ffs::FS_TYPE.to_str().unwrap() == mount.fstype && mount.source == instance {
             log::debug!("unmounting functionfs {} from {}", instance.to_string_lossy(), mount.dest.display());
             if let Err(err) = ffs::umount(&mount.dest, false) {
                 log::debug!("unmount failed, trying lazy unmount: {err}");
@@ -960,7 +963,7 @@ impl Custom {
     /// Returns real address of an interface.
     pub fn real_address(&mut self, intf: u8) -> Result<u8> {
         let ep0 = self.ep0()?;
-        let address = unsafe { ffs::interface_revmap(ep0.as_raw_fd(), intf.into()) }?;
+        let address = ffs::interface_revmap(ep0.as_fd(), intf.into())?;
         Ok(address as u8)
     }
 
@@ -999,14 +1002,17 @@ impl Custom {
     fn wait_event_sync(&mut self, timeout: Option<Duration>) -> Result<bool> {
         let ep0 = self.ep0()?;
 
-        let mut fds = [PollFd::new(ep0.as_fd(), PollFlags::POLLIN)];
-        poll(&mut fds, timeout.map(|d| d.as_millis().try_into().unwrap()).unwrap_or(PollTimeout::NONE))?;
-        Ok(fds[0].revents().map(|e| e.contains(PollFlags::POLLIN)).unwrap_or_default())
+        let mut fds = [PollFd::new(&*ep0, PollFlags::IN)];
+        let timeout_ts =
+            timeout.map(Timespec::try_from).transpose().map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+        poll(&mut fds, timeout_ts.as_ref())?;
+        Ok(fds[0].revents().contains(PollFlags::IN))
     }
 
     /// Asynchronously wait for an event to be available.
     #[cfg(feature = "tokio")]
     pub async fn wait_event(&mut self) -> Result<()> {
+        use std::os::fd::AsFd;
         use tokio::io::{unix::AsyncFd, Interest};
 
         let ep0 = self.ep0()?;
@@ -1321,14 +1327,14 @@ impl<'a> EndpointControl<'a> {
     /// complete when they're sitting in the FIFO unread.
     pub fn unclaimed_fifo(&self) -> Result<usize> {
         let file = self.io.file()?;
-        let bytes = unsafe { ffs::fifo_status(file.as_raw_fd()) }?;
+        let bytes = ffs::fifo_status(file.as_fd())?;
         Ok(bytes as usize)
     }
 
     /// Discards any unclaimed data in the endpoint FIFO.
     pub fn discard_fifo(&self) -> Result<()> {
         let file = self.io.file()?;
-        unsafe { ffs::fifo_flush(file.as_raw_fd()) }?;
+        ffs::fifo_flush(file.as_fd())?;
         Ok(())
     }
 
@@ -1360,14 +1366,14 @@ impl<'a> EndpointControl<'a> {
     /// in the endpoint's IO queue.
     pub fn clear_halt(&self) -> Result<()> {
         let file = self.io.file()?;
-        unsafe { ffs::clear_halt(file.as_raw_fd()) }?;
+        ffs::clear_halt(file.as_fd())?;
         Ok(())
     }
 
     /// Returns real `bEndpointAddress` of the endpoint.
     pub fn real_address(&self) -> Result<u8> {
         let file = self.io.file()?;
-        let address = unsafe { ffs::endpoint_revmap(file.as_raw_fd()) }?;
+        let address = ffs::endpoint_revmap(file.as_fd())?;
         Ok(address as u8)
     }
 
@@ -1375,7 +1381,7 @@ impl<'a> EndpointControl<'a> {
     pub fn descriptor(&self) -> Result<RawEndpointDesc> {
         let file = self.io.file()?;
         let mut data = [0; ffs::EndpointDesc::AUDIO_SIZE];
-        unsafe { ffs::endpoint_desc(file.as_raw_fd(), &mut data) }?;
+        ffs::endpoint_desc(file.as_fd(), &mut data)?;
         ffs::EndpointDesc::parse(&data)
     }
 

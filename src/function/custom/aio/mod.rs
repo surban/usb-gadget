@@ -1,14 +1,14 @@
 //! Linux AIO driver.
 
 use bytes::{Bytes, BytesMut};
-use nix::sys::eventfd::{self, EfdFlags};
+use rustix::event::EventfdFlags;
 use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},
     fmt,
     io::{Error, ErrorKind, Result},
     mem::{self, MaybeUninit},
     ops::Deref,
-    os::fd::{AsRawFd, RawFd},
+    os::fd::{AsRawFd, OwnedFd, RawFd},
     pin::Pin,
     ptr,
     sync::{mpsc, mpsc::TryRecvError, Arc},
@@ -22,13 +22,13 @@ pub use sys::opcode;
 
 /// eventfd provided by kernel.
 #[derive(Debug, Clone)]
-struct EventFd(Arc<eventfd::EventFd>);
+struct EventFd(Arc<OwnedFd>);
 
 impl EventFd {
     /// Create new eventfd with initial value and semaphore characteristics, if requested.
     pub fn new(initval: u32, semaphore: bool) -> Result<Self> {
-        let flags = if semaphore { EfdFlags::EFD_SEMAPHORE } else { EfdFlags::empty() };
-        let fd = eventfd::EventFd::from_value_and_flags(initval, flags)?;
+        let flags = if semaphore { EventfdFlags::SEMAPHORE } else { EventfdFlags::empty() };
+        let fd = rustix::event::eventfd(initval, flags)?;
         Ok(Self(Arc::new(fd)))
     }
 
@@ -37,9 +37,9 @@ impl EventFd {
     /// Blocks while value is zero.
     pub fn read(&self) -> Result<u64> {
         let mut buf = [0; 8];
-        let ret = unsafe { libc::read(self.0.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len()) };
-        if ret != buf.len() as _ {
-            return Err(Error::last_os_error());
+        let n = rustix::io::read(&*self.0, &mut buf).map_err(Error::from)?;
+        if n != buf.len() {
+            return Err(Error::new(ErrorKind::Other, "short read from eventfd"));
         }
 
         Ok(u64::from_ne_bytes(buf))
@@ -48,9 +48,9 @@ impl EventFd {
     /// Increase value by `n`.
     pub fn write(&self, n: u64) -> Result<()> {
         let buf = n.to_ne_bytes();
-        let ret = unsafe { libc::write(self.0.as_raw_fd(), buf.as_ptr() as *mut _, buf.len()) };
-        if ret != buf.len() as _ {
-            return Err(Error::last_os_error());
+        let written = rustix::io::write(&*self.0, &buf).map_err(Error::from)?;
+        if written != buf.len() {
+            return Err(Error::new(ErrorKind::Other, "short write to eventfd"));
         }
         Ok(())
     }

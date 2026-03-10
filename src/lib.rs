@@ -27,7 +27,7 @@ compile_error!("usb_gadget only supports Linux");
 
 use proc_mounts::MountIter;
 use std::{
-    ffi::{CStr, OsStr},
+    ffi::OsStr,
     io::{Error, ErrorKind, Result},
     os::unix::prelude::OsStrExt,
     path::PathBuf,
@@ -36,6 +36,8 @@ use std::{
 };
 
 pub mod function;
+
+mod ioctl;
 
 mod gadget;
 pub use gadget::*;
@@ -132,22 +134,10 @@ fn request_module(name: impl AsRef<OsStr>) -> Result<()> {
 fn linux_version() -> Option<(u16, u16)> {
     static VERSION: OnceLock<Result<(u16, u16)>> = OnceLock::new();
     let version = VERSION.get_or_init(|| {
-        let mut uts = libc::utsname {
-            sysname: [0; 65],
-            nodename: [0; 65],
-            release: [0; 65],
-            version: [0; 65],
-            machine: [0; 65],
-            domainname: [0; 65],
-        };
+        let uts = rustix::system::uname();
 
-        if unsafe { libc::uname(&mut uts) } == -1 {
-            return Err(Error::last_os_error());
-        }
-
-        let release = unsafe { CStr::from_ptr(uts.release.as_ptr() as *const _) }
-            .to_str()
-            .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid release string"))?;
+        let release =
+            uts.release().to_str().map_err(|_| Error::new(ErrorKind::InvalidData, "invalid release string"))?;
 
         let parts: Vec<&str> = release.split('.').collect();
         if parts.len() < 2 {
