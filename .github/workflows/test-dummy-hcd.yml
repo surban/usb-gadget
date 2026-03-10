@@ -250,27 +250,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          vm() {
-            sshpass -p ubuntu ssh \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              -o LogLevel=ERROR \
-              -o ServerAliveInterval=15 \
-              -o ServerAliveCountMax=12 \
-              -p 2222 ubuntu@localhost -- "$@"
-          }
+          SSH="sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p 2222 ubuntu@localhost"
 
           # Mount the data disk containing the pre-built workspace.
           echo "Mounting workspace disk ..."
-          vm "sudo mkdir -p /mnt/data && sudo mount /dev/vdc /mnt/data && sudo chown -R ubuntu:ubuntu /mnt/data"
+          $SSH "sudo mkdir -p /mnt/data && sudo mount /dev/vdc /mnt/data && sudo chown -R ubuntu:ubuntu /mnt/data"
 
           # Install Rust inside the VM.  The minimal profile is enough — we
           # only need cargo + rustc to drive `cargo test`, and all artefacts
           # are already compiled on the host.
           echo "Installing Rust toolchain in VM ..."
-          vm 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal 2>&1 | tail -5'
+          $SSH 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal 2>&1 | tail -5'
 
-          # Run the full test suite as root in release mode.
+          # Write the test runner script into the VM.  This avoids all
+          # SSH quoting headaches with inline bash -c.
           # - Release mode is required for the throughput benchmark floor assertions.
           # - dummy_hcd provides both device and host sides in the same kernel,
           #   so we do NOT set SKIP_HOST.
@@ -281,18 +274,24 @@ jobs:
           #   endpoints whose max packet size exceeds the FullSpeed limit
           #   (1023 bytes) that dummy_hcd enforces during initial enumeration,
           #   causing the gadget bind to fail with ENODEV.
+          $SSH tee /tmp/run-tests.sh > /dev/null <<'VMSCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          source "$HOME/.cargo/env"
+          cd /mnt/data/workspace
+          sudo -E env \
+            "PATH=$PATH" \
+            "HOME=$HOME" \
+            "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
+            "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" \
+            RUST_LOG=info \
+            RUST_BACKTRACE=1 \
+            cargo test --release --all-features -- --nocapture --test-threads=1 --skip audio --skip video
+          VMSCRIPT
+
           echo ""
           echo "=== Running tests ==="
-          vm bash -c 'cd /mnt/data/workspace && \
-            source "$HOME/.cargo/env" && \
-            sudo -E env \
-              "PATH=$PATH" \
-              "HOME=$HOME" \
-              "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
-              "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" \
-              RUST_LOG=info \
-              RUST_BACKTRACE=1 \
-              cargo test --release --all-features -- --nocapture --test-threads=1 --skip audio --skip video'
+          $SSH bash /tmp/run-tests.sh
         timeout-minutes: 15
 
       - name: Cleanup
