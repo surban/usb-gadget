@@ -1,3 +1,4 @@
 /target
 /Cargo.lock
 .cargo/config.toml
+.ci/kernel-*.tar.zst

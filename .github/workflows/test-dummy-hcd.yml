@@ -8,12 +8,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  KERNEL_VERSION: "6.15.3"
 
 jobs:
   test-dummy-hcd:
-    name: Tests with dummy_hcd loopback UDC (QEMU VM)
+    name: Tests with dummy_hcd loopback UDC (virtme-ng)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -21,294 +22,38 @@ jobs:
       - name: Update Rust
         run: rustup update
 
-      - name: Build (release, all features)
-        run: cargo build --release --all-features --all-targets
-
-      - name: Install QEMU and tooling
+      - name: Install virtme-ng and dependencies
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            qemu-system-x86 qemu-utils cloud-image-utils \
-            e2fsprogs sshpass
+            qemu-system-x86 zstd busybox-static
+          pip3 install --user virtme-ng
 
-      - name: Download and prepare VM image
+      - name: Cache kernel tarball
+        id: cache-kernel
+        uses: actions/cache@v4
+        with:
+          path: .ci/kernel-${{ env.KERNEL_VERSION }}.tar.zst
+          key: ci-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('.ci/usb-gadget.config', '.ci/build-kernel.sh') }}
+
+      - name: Install kernel build deps
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            build-essential flex bison libelf-dev libssl-dev bc
+
+      - name: Build kernel
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
+        run: .ci/build-kernel.sh --kernel-version "$KERNEL_VERSION"
+
+      - name: Build (release, all features)
+        run: cargo build --release --all-features --all-targets
+
+      - name: Run tests in VM
         run: |
           set -euo pipefail
-
-          # Ubuntu Noble 24.04 cloud image.  Its generic kernel has
-          # CONFIG_USB_GADGET=m plus all usb_f_* function drivers, but
-          # CONFIG_USB_DUMMY_HCD is disabled.  We build dummy_hcd from
-          # the kernel source as an out-of-tree module inside the VM.
-          RELEASE=noble
-          IMG_URL="https://cloud-images.ubuntu.com/${RELEASE}/current/${RELEASE}-server-cloudimg-amd64.img"
-          echo "Downloading cloud image from ${IMG_URL} ..."
-          wget -q -O /tmp/base.qcow2 "$IMG_URL"
-
-          # Resize so there is room for kernel source, build tools, and workspace.
-          qemu-img resize /tmp/base.qcow2 20G
-
-      - name: Create cloud-init seed image
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/ci-data
-
-          cat > /tmp/ci-data/meta-data <<'CIEOF'
-          instance-id: usb-gadget-ci
-          local-hostname: usb-gadget-ci
-          CIEOF
-
-          # cloud-init will:
-          #   1. Enable password-based SSH for the "ubuntu" user.
-          #   2. Install kernel headers, source, build tools, and modules-extra.
-          #   3. Build dummy_hcd.ko from the kernel source tree against the
-          #      running kernel's headers (out-of-tree module build).
-          #   4. Load dummy_hcd + all USB gadget function drivers.
-          #   5. Touch a sentinel so the host knows the VM is ready.
-          #
-          # Why build from source?  Ubuntu Noble's generic kernel ships with
-          # CONFIG_USB_GADGET=m and all usb_f_* drivers, but explicitly sets
-          # "# CONFIG_USB_DUMMY_HCD is not set".  The dummy_hcd.c source is
-          # included in the linux-source package, and building it as an
-          # out-of-tree module against the installed kernel headers produces
-          # a .ko with the correct vermagic that loads without --force.
-          cat > /tmp/ci-data/user-data <<'CIEOF'
-          #cloud-config
-          password: ubuntu
-          chpasswd:
-            expire: false
-          ssh_pwauth: true
-          runcmd:
-            - apt-get update -y
-            - DEBIAN_FRONTEND=noninteractive apt-get install -y linux-modules-extra-$(uname -r) linux-headers-$(uname -r) linux-source build-essential flex bison libelf-dev libssl-dev
-            - |
-              set -eux
-              KVER=$(uname -r)
-              # Extract dummy_hcd.c from the kernel source tarball.
-              SRCTAR=$(find /usr/src -name 'linux-source-*.tar.bz2' | head -1)
-              SRCBASE=$(basename "$SRCTAR" .tar.bz2)
-              cd /tmp
-              tar xf "$SRCTAR" --strip-components=5 "${SRCBASE}/drivers/usb/gadget/udc/dummy_hcd.c"
-              # Build as out-of-tree module against the running kernel headers.
-              mkdir -p /tmp/dummy_hcd_build
-              mv dummy_hcd.c /tmp/dummy_hcd_build/
-              echo 'obj-m := dummy_hcd.o' > /tmp/dummy_hcd_build/Kbuild
-              make -C /usr/src/linux-headers-${KVER} M=/tmp/dummy_hcd_build modules
-              # Install the module.
-              install -D /tmp/dummy_hcd_build/dummy_hcd.ko /lib/modules/${KVER}/kernel/drivers/usb/gadget/udc/dummy_hcd.ko
-              depmod -a "${KVER}"
-            - modprobe configfs
-            - modprobe libcomposite
-            - modprobe dummy_hcd is_super_speed=Y
-            - modprobe usb_f_fs           || true
-            - modprobe usb_f_acm          || true
-            - modprobe usb_f_serial       || modprobe usb_f_gser || true
-            - modprobe usb_f_ecm          || true
-            - modprobe usb_f_eem          || true
-            - modprobe usb_f_ncm          || true
-            - modprobe usb_f_rndis        || true
-            - modprobe usb_f_ecm_subset   || modprobe usb_f_subset || true
-            - modprobe usb_f_hid          || true
-            - modprobe usb_f_mass_storage || true
-            - modprobe usb_f_printer      || true
-            - modprobe usb_f_midi         || true
-            - modprobe usb_f_uac2         || true
-            - modprobe usb_f_uvc          || true
-            - touch /run/cloud-init-done
-          CIEOF
-
-          # The heredoc is indented by 10 spaces inside the YAML block scalar.
-          # Strip that leading whitespace so cloud-init sees valid YAML.
-          sed -i 's/^          //' /tmp/ci-data/meta-data /tmp/ci-data/user-data
-
-          cloud-localds /tmp/seed.img /tmp/ci-data/user-data /tmp/ci-data/meta-data
-
-      - name: Pack workspace into a data disk
-        run: |
-          set -euo pipefail
-
-          # Archive the full project including pre-built release artefacts so
-          # that `cargo test` inside the VM is essentially free (same host
-          # triple, artefacts are up-to-date).  Only strip .git to save space.
-          tar cf /tmp/workspace.tar \
-            --exclude='.git' \
-            -C "$GITHUB_WORKSPACE" .
-
-          # Create a raw ext4 image large enough for the archive.
-          ARCHIVE_BYTES=$(stat -c%s /tmp/workspace.tar)
-          ARCHIVE_SIZE_MB=$(( ARCHIVE_BYTES / 1048576 + 512 ))
-          echo "Archive is ${ARCHIVE_BYTES} bytes, creating ${ARCHIVE_SIZE_MB} MiB data disk"
-
-          dd if=/dev/zero of=/tmp/data.img bs=1M count="$ARCHIVE_SIZE_MB"
-          mkfs.ext4 -q -F /tmp/data.img
-
-          MOUNT_DIR=$(mktemp -d)
-          sudo mount -o loop /tmp/data.img "$MOUNT_DIR"
-          sudo mkdir -p "$MOUNT_DIR/workspace"
-          sudo tar xf /tmp/workspace.tar -C "$MOUNT_DIR/workspace"
-          sudo umount "$MOUNT_DIR"
-          rmdir "$MOUNT_DIR"
-          rm -f /tmp/workspace.tar
-
-      - name: Boot QEMU VM
-        run: |
-          set -euo pipefail
-
-          # Launch the VM in the background.
-          #   - KVM when available (GitHub-hosted runners expose /dev/kvm),
-          #     TCG (software emulation) as fallback.
-          #   - 4 vCPUs, 8 GiB RAM — plenty for kernel module build + tests.
-          #   - Three virtio disks: root (cloud image), seed (cloud-init),
-          #     data (our workspace with pre-built artefacts).
-          #   - User-mode networking with SSH port-forward guest:22 -> host:2222.
-          qemu-system-x86_64 \
-            -machine q35,accel=kvm:tcg \
-            -cpu max \
-            -smp 4 \
-            -m 8G \
-            -nographic \
-            -drive file=/tmp/base.qcow2,format=qcow2,if=virtio,cache=unsafe \
-            -drive file=/tmp/seed.img,format=raw,if=virtio,readonly=on \
-            -drive file=/tmp/data.img,format=raw,if=virtio \
-            -netdev user,id=net0,hostfwd=tcp::2222-:22 \
-            -device virtio-net-pci,netdev=net0 \
-            </dev/null >/tmp/qemu-console.log 2>&1 &
-          echo $! > /tmp/qemu.pid
-          echo "QEMU started with PID $(cat /tmp/qemu.pid)"
-
-      - name: Wait for VM to be ready
-        run: |
-          set -euo pipefail
-
-          SSH="sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 -p 2222 ubuntu@localhost"
-
-          # cloud-init needs extra time to install packages and compile dummy_hcd.
-          echo "Waiting for VM to boot and cloud-init to finish ..."
-          for i in $(seq 1 300); do
-            if $SSH "test -f /run/cloud-init-done" 2>/dev/null; then
-              echo "VM is ready after ~${i}s"
-              break
-            fi
-            if [ "$i" -eq 300 ]; then
-              echo "ERROR: VM did not become ready within 300 seconds"
-              echo ""
-              echo "=== cloud-init log (last 60 lines) ==="
-              $SSH "sudo tail -60 /var/log/cloud-init-output.log" 2>/dev/null || true
-              echo ""
-              echo "=== QEMU console log (last 100 lines) ==="
-              tail -100 /tmp/qemu-console.log 2>/dev/null || true
-              exit 1
-            fi
-            sleep 1
-          done
-
-      - name: Verify VM environment
-        run: |
-          set -euo pipefail
-
-          vm() {
-            sshpass -p ubuntu ssh \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              -o LogLevel=ERROR \
-              -p 2222 ubuntu@localhost -- "$@"
-          }
-
-          echo "=== VM kernel ==="
-          vm uname -a
-
-          echo ""
-          echo "=== Loaded USB gadget modules ==="
-          vm lsmod | grep -E 'dummy_hcd|libcomposite|usb_f_|configfs' || true
-
-          echo ""
-          echo "=== UDC devices ==="
-          vm ls -la /sys/class/udc/ || true
-
-          if ! vm "ls /sys/class/udc/ 2>/dev/null | grep -q ."; then
-            echo ""
-            echo "ERROR: No UDC found in VM after loading dummy_hcd"
-            echo ""
-            echo "=== cloud-init log (last 40 lines) ==="
-            vm "sudo tail -40 /var/log/cloud-init-output.log" || true
-            echo ""
-            echo "=== dmesg (last 30 lines) ==="
-            vm "sudo dmesg | tail -30" || true
-            exit 1
-          fi
-
-          echo ""
-          echo "=== UDC details ==="
-          vm cat /sys/class/udc/*/max_speed || true
-          vm cat /sys/class/udc/*/current_speed || true
-
-          echo ""
-          echo "=== configfs mounts ==="
-          vm mount | grep configfs || true
-
-      - name: Run tests inside VM
-        run: |
-          set -euo pipefail
-
-          SSH="sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p 2222 ubuntu@localhost"
-
-          # Mount the data disk containing the pre-built workspace.
-          echo "Mounting workspace disk ..."
-          $SSH "sudo mkdir -p /mnt/data && sudo mount /dev/vdc /mnt/data && sudo chown -R ubuntu:ubuntu /mnt/data"
-
-          # Install Rust inside the VM.  The minimal profile is enough — we
-          # only need cargo + rustc to drive `cargo test`, and all artefacts
-          # are already compiled on the host.
-          echo "Installing Rust toolchain in VM ..."
-          $SSH 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal 2>&1 | tail -5'
-
-          # Write the test runner script into the VM.  This avoids all
-          # SSH quoting headaches with inline bash -c.
-          # - Release mode is required for the throughput benchmark floor assertions.
-          # - dummy_hcd provides both device and host sides in the same kernel,
-          #   so we do NOT set SKIP_HOST.
-          # - --test-threads=1: gadget tests share a single UDC and must not overlap.
-          # - The host-built artefacts under target/ are reused; cargo only
-          #   needs to check freshness and link, which takes seconds.
-          # - The audio and video tests are skipped: they require isochronous
-          #   endpoints whose max packet size exceeds the FullSpeed limit
-          #   (1023 bytes) that dummy_hcd enforces during initial enumeration,
-          #   causing the gadget bind to fail with ENODEV.
-          $SSH tee /tmp/run-tests.sh > /dev/null <<'VMSCRIPT'
-          #!/bin/bash
-          set -euo pipefail
-          source "$HOME/.cargo/env"
-          cd /mnt/data/workspace
-          sudo -E env \
-            "PATH=$PATH" \
-            "HOME=$HOME" \
-            "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
-            "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" \
-            RUST_LOG=info \
-            RUST_BACKTRACE=1 \
-            cargo test --release --all-features -- --nocapture --test-threads=1 --skip audio --skip video
-          VMSCRIPT
-
-          echo ""
-          echo "=== Running tests ==="
-          $SSH bash /tmp/run-tests.sh
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".ci/cargo-test-runner.sh"
+          cargo test --release --all-features \
+            -- --nocapture --test-threads=1 --skip audio --skip video
         timeout-minutes: 15
-
-      - name: Cleanup
-        if: always()
-        run: |
-          if [ -f /tmp/qemu.pid ]; then
-            QEMU_PID=$(cat /tmp/qemu.pid)
-            echo "Stopping QEMU (PID ${QEMU_PID}) ..."
-            kill "$QEMU_PID" 2>/dev/null || true
-            for i in $(seq 1 10); do
-              kill -0 "$QEMU_PID" 2>/dev/null || break
-              sleep 1
-            done
-            kill -9 "$QEMU_PID" 2>/dev/null || true
-          fi
-          if [ -f /tmp/qemu-console.log ]; then
-            echo ""
-            echo "=== QEMU console log (last 80 lines) ==="
-            tail -80 /tmp/qemu-console.log || true
-          fi
