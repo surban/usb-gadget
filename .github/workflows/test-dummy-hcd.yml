@@ -1,0 +1,111 @@
+name: Test with dummy_hcd
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-dummy-hcd:
+    name: Tests with dummy_hcd loopback UDC
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update
+
+      - name: Install kernel modules
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
+
+      - name: Load dummy_hcd and gadget modules
+        run: |
+          # Load configfs (usually already present, but be safe).
+          sudo modprobe configfs
+
+          # Load the USB gadget core and configfs integration.
+          sudo modprobe libcomposite
+
+          # Load dummy_hcd with SuperSpeed support for throughput benchmarks.
+          sudo modprobe dummy_hcd is_super_speed=Y
+
+          # Load all the USB gadget function modules the test suite needs.
+          sudo modprobe usb_f_fs        || echo "Warning: usb_f_fs not available"
+          sudo modprobe usb_f_acm       || echo "Warning: usb_f_acm not available"
+          sudo modprobe usb_f_serial    || sudo modprobe usb_f_gser || echo "Warning: usb_f_serial/usb_f_gser not available"
+          sudo modprobe usb_f_ecm       || echo "Warning: usb_f_ecm not available"
+          sudo modprobe usb_f_eem       || echo "Warning: usb_f_eem not available"
+          sudo modprobe usb_f_ncm       || echo "Warning: usb_f_ncm not available"
+          sudo modprobe usb_f_rndis     || echo "Warning: usb_f_rndis not available"
+          sudo modprobe usb_f_ecm_subset || sudo modprobe usb_f_subset || echo "Warning: usb_f_ecm_subset/usb_f_subset not available"
+          sudo modprobe usb_f_hid       || echo "Warning: usb_f_hid not available"
+          sudo modprobe usb_f_mass_storage || echo "Warning: usb_f_mass_storage not available"
+          sudo modprobe usb_f_printer   || echo "Warning: usb_f_printer not available"
+          sudo modprobe usb_f_midi      || echo "Warning: usb_f_midi not available"
+          sudo modprobe usb_f_uac2      || echo "Warning: usb_f_uac2 not available"
+          sudo modprobe usb_f_uvc       || echo "Warning: usb_f_uvc not available"
+
+      - name: Verify dummy_hcd is loaded
+        run: |
+          echo "=== Loaded USB gadget modules ==="
+          lsmod | grep -E 'dummy_hcd|libcomposite|usb_f_|configfs' || true
+          echo ""
+
+          echo "=== UDC devices ==="
+          ls -la /sys/class/udc/ || true
+          echo ""
+
+          # Verify at least one UDC is present.
+          if [ -z "$(ls /sys/class/udc/ 2>/dev/null)" ]; then
+            echo "ERROR: No UDC found after loading dummy_hcd"
+            exit 1
+          fi
+
+          echo "=== UDC details ==="
+          for udc in /sys/class/udc/*; do
+            echo "UDC: $(basename $udc)"
+            echo "  max_speed: $(cat $udc/max_speed 2>/dev/null || echo 'N/A')"
+            echo "  current_speed: $(cat $udc/current_speed 2>/dev/null || echo 'N/A')"
+            driver=$(readlink $udc/device/driver 2>/dev/null | xargs basename 2>/dev/null || echo 'N/A')
+            echo "  driver: $driver"
+          done
+
+          echo ""
+          echo "=== configfs mounts ==="
+          mount | grep configfs || true
+
+      - name: Build (release, all features)
+        run: cargo build --release --all-features --all-targets
+
+      - name: Run tests (release)
+        run: |
+          # Run all tests in release mode as root.
+          # Release mode is needed for the throughput benchmark floor assertions.
+          # Do NOT set SKIP_HOST — dummy_hcd provides both device and host sides
+          # in the same kernel, so host-side verification works.
+          sudo -E env "PATH=$PATH" \
+            "HOME=$HOME" \
+            "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
+            "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" \
+            RUST_LOG=info \
+            RUST_BACKTRACE=1 \
+            cargo test --release --all-features -- --nocapture --test-threads=1
+        timeout-minutes: 10
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Remove any leftover gadgets.
+          for gadget in /sys/kernel/config/usb_gadget/*/; do
+            if [ -d "$gadget" ]; then
+              echo "" | sudo tee "${gadget}UDC" 2>/dev/null || true
+            fi
+          done
+          sudo modprobe -r dummy_hcd 2>/dev/null || true
