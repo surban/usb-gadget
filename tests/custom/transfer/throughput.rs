@@ -2,6 +2,9 @@
 //!
 //! Measures USB bulk IN and OUT throughput using large buffers and a deep
 //! AIO queue to saturate the USB link.
+//!
+//! In release mode, measured throughput is checked against a minimum floor
+//! that depends on the UDC driver in use (see [`min_throughput_mib_s`]).
 
 use bytes::{Bytes, BytesMut};
 use nusb::transfer::{ControlOut, ControlType, Recipient};
@@ -18,7 +21,7 @@ use std::{
 use usb_gadget::{
     default_udc,
     function::custom::{Custom, Endpoint, EndpointDirection, Interface},
-    Class, Config, Gadget, Id, Speed, Strings,
+    Class, Config, Gadget, Id, Strings, Speed,
 };
 
 use super::*;
@@ -33,12 +36,55 @@ const BENCH_BUF_SIZE: usize = 16384;
 /// AIO queue depth for the benchmark endpoints.
 const BENCH_QUEUE_LEN: u32 = 32;
 
+/// Minimum expected throughput (MiB/s, per direction) for a given UDC driver
+/// and negotiated speed.
+///
+/// These floors are intentionally conservative — roughly one-third to one-half
+/// of the practical wire speed — so that they pass on loaded CI machines and
+/// real hardware while still catching gross regressions.
+///
+/// Returns `None` if no assertion should be made (e.g. low/full speed where
+/// throughput is negligible).
+///
+/// | Driver       | Max speed      | Expected floor | Rationale                              |
+/// |--------------|----------------|----------------|----------------------------------------|
+/// | `dummy_udc`  | High-Speed     | 100 MiB/s      | Virtual loopback, no real USB wire     |
+/// | `dummy_udc`  | Super-Speed+   | 300 MiB/s      | Virtual loopback, no real USB wire     |
+/// | `dwc2`       | High-Speed     | 10 MiB/s       | DesignWare USB 2.0 OTG, ~20 MiB/s max |
+/// | `dwc3`       | High-Speed     | 10 MiB/s       | DesignWare USB 3.x in HS mode          |
+/// | `dwc3`       | Super-Speed+   | 100 MiB/s      | DesignWare USB 3.x at 5+ Gbps          |
+/// | `cdns3`      | High-Speed     | 10 MiB/s       | Cadence USB 3.x in HS mode             |
+/// | `cdns3`      | Super-Speed+   | 100 MiB/s      | Cadence USB 3.x at 5+ Gbps            |
+/// | `musb-hdrc`  | High-Speed     | 5 MiB/s        | Mentor USB 2.0 OTG (TI, Allwinner)    |
+/// | (other)      | High-Speed     | 5 MiB/s        | Conservative fallback for real HW      |
+/// | (other)      | Super-Speed+   | 50 MiB/s       | Conservative fallback for real HW      |
+fn min_throughput_mib_s(driver: &str, max_speed: Speed) -> Option<f64> {
+    if max_speed < Speed::HighSpeed {
+        return None;
+    }
+
+    let is_ss = max_speed >= Speed::SuperSpeed;
+
+    match driver {
+        "dummy_udc" => Some(if is_ss { 300.0 } else { 100.0 }),
+        "dwc2"      => Some(10.0), // HS only
+        "dwc3"      => Some(if is_ss { 100.0 } else { 10.0 }),
+        "cdns3"     => Some(if is_ss { 100.0 } else { 10.0 }),
+        "musb-hdrc" => Some(5.0),
+        _           => Some(if is_ss { 50.0 } else { 5.0 }),
+    }
+}
+
 /// Sets up a custom USB gadget with deeper AIO queues for benchmarking.
+///
+/// Returns the registration handle, custom function, endpoint handles,
+/// the UDC driver name, and the maximum speed.
 fn setup_bench_gadget() -> (
     usb_gadget::RegGadget,
     Custom,
     usb_gadget::function::custom::EndpointReceiver,
     usb_gadget::function::custom::EndpointSender,
+    String,
     Speed,
 ) {
     let (vid, pid) = (VID, PID);
@@ -57,8 +103,9 @@ fn setup_bench_gadget() -> (
 
     let udc = default_udc().expect("cannot get UDC");
 
+    let driver = udc.driver().expect("cannot query UDC driver").to_string_lossy().into_owned();
     let max_speed = udc.max_speed().expect("cannot query UDC max speed");
-    println!("UDC {} max speed: {max_speed}", udc.name().to_string_lossy());
+    println!("UDC {} driver={driver} max_speed={max_speed}", udc.name().to_string_lossy());
 
     let reg = Gadget::new(
         Class::new(255, 255, 0),
@@ -69,16 +116,15 @@ fn setup_bench_gadget() -> (
     .bind(&udc)
     .expect("cannot bind to UDC");
 
-    (reg, custom, ep_rx, ep_tx, max_speed)
+    (reg, custom, ep_rx, ep_tx, driver, max_speed)
 }
 
 /// Device side for the throughput benchmark: pipelined send/recv with
 /// pre-allocated buffers for minimal allocation overhead.
 fn run_device_bench(
     mut custom: Custom, mut ep_rx: usb_gadget::function::custom::EndpointReceiver,
-    mut ep_tx: usb_gadget::function::custom::EndpointSender,
+    mut ep_tx: usb_gadget::function::custom::EndpointSender, stop: Arc<AtomicBool>,
 ) {
-    let stop = Arc::new(AtomicBool::new(false));
     let stop_rx = stop.clone();
     let stop_tx = stop.clone();
 
@@ -135,9 +181,20 @@ fn run_device_bench(
     });
 }
 
+/// Guard that sets the stop flag on drop, ensuring the device side is
+/// signalled even if the host side panics.
+struct StopGuard<'a>(&'a AtomicBool);
+
+impl Drop for StopGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+}
+
 /// Host side for the throughput benchmark: measures bulk IN and OUT throughput
 /// over `BENCH_TOTAL_BYTES` bytes in each direction.
-fn run_host_bench(udc_max_speed: Speed) {
+fn run_host_bench(stop: &AtomicBool, driver: &str, max_speed: Speed) {
+    let _guard = StopGuard(stop);
     let (vid, pid) = (VID, PID);
     let (intf, ep_in, ep_out, if_num) = open_host_device(vid, pid);
 
@@ -181,52 +238,46 @@ fn run_host_bench(udc_max_speed: Speed) {
         (in_bytes, in_elapsed, out_bytes, out_elapsed)
     });
 
-    let in_mbps = in_bytes as f64 / in_elapsed.as_secs_f64() / (1024.0 * 1024.0);
-    let out_mbps = out_bytes as f64 / out_elapsed.as_secs_f64() / (1024.0 * 1024.0);
+    let in_mib_s = in_bytes as f64 / in_elapsed.as_secs_f64() / (1024.0 * 1024.0);
+    let out_mib_s = out_bytes as f64 / out_elapsed.as_secs_f64() / (1024.0 * 1024.0);
 
     println!();
     println!("=== Bulk throughput benchmark results ===");
     println!(
-        "  IN  (device -> host): {in_bytes:>10} bytes in {:>8.3} s = {in_mbps:>8.2} MiB/s",
+        "  IN  (device -> host): {in_bytes:>10} bytes in {:>8.3} s = {in_mib_s:>8.2} MiB/s",
         in_elapsed.as_secs_f64()
     );
     println!(
-        "  OUT (host -> device): {out_bytes:>10} bytes in {:>8.3} s = {out_mbps:>8.2} MiB/s",
+        "  OUT (host -> device): {out_bytes:>10} bytes in {:>8.3} s = {out_mib_s:>8.2} MiB/s",
         out_elapsed.as_secs_f64()
     );
     println!("=========================================");
     println!();
 
-    // In release mode, verify that throughput meets the expected floor for the
-    // negotiated USB speed.  The thresholds are intentionally conservative
-    // (roughly half of the theoretical wire speed) so that they pass reliably
-    // on CI and loaded machines while still catching gross regressions.
+    // In release mode, verify that throughput meets the expected floor for
+    // this UDC driver and speed.
     #[cfg(not(debug_assertions))]
-    {
-        let min_mib_s: f64 = if udc_max_speed >= Speed::SuperSpeed {
-            // USB 3.0+: wire speed ~476 MiB/s, expect at least 300.
-            300.0
-        } else if udc_max_speed >= Speed::HighSpeed {
-            // USB 2.0: dummy_hcd model ~406 MiB/s, expect at least 100.
-            100.0
-        } else {
-            0.0
-        };
-
-        if min_mib_s > 0.0 {
-            assert!(
-                in_mbps >= min_mib_s,
-                "IN throughput {in_mbps:.1} MiB/s is below the {min_mib_s:.0} MiB/s floor for {udc_max_speed}",
-            );
-            assert!(
-                out_mbps >= min_mib_s,
-                "OUT throughput {out_mbps:.1} MiB/s is below the {min_mib_s:.0} MiB/s floor for {udc_max_speed}",
-            );
-            println!("Throughput floor check passed (>= {min_mib_s:.0} MiB/s for {udc_max_speed})");
-        }
+    if let Some(min) = min_throughput_mib_s(driver, max_speed) {
+        println!("Throughput floor for driver={driver} speed={max_speed}: {min:.0} MiB/s");
+        assert!(
+            in_mib_s >= min,
+            "IN throughput {in_mib_s:.1} MiB/s is below the {min:.0} MiB/s floor \
+             (driver={driver}, speed={max_speed})",
+        );
+        assert!(
+            out_mib_s >= min,
+            "OUT throughput {out_mib_s:.1} MiB/s is below the {min:.0} MiB/s floor \
+             (driver={driver}, speed={max_speed})",
+        );
+        println!("Throughput floor check passed (>= {min:.0} MiB/s)");
     }
 
-    // Signal device to stop.
+    // Suppress unused variable warnings in debug mode.
+    #[cfg(debug_assertions)]
+    let _ = (driver, max_speed);
+
+    // Signal device to stop (also done by StopGuard on panic).
+    stop.store(true, Ordering::Relaxed);
     intf.control_out(
         ControlOut {
             control_type: ControlType::Vendor,
@@ -251,11 +302,13 @@ fn throughput_benchmark() {
         return;
     }
 
-    let (reg, custom, ep_rx, ep_tx, udc_max_speed) = setup_bench_gadget();
+    let (reg, custom, ep_rx, ep_tx, driver, max_speed) = setup_bench_gadget();
+    let stop = Arc::new(AtomicBool::new(false));
 
     thread::scope(|s| {
-        s.spawn(|| run_device_bench(custom, ep_rx, ep_tx));
-        s.spawn(|| run_host_bench(udc_max_speed));
+        let stop_device = stop.clone();
+        s.spawn(move || run_device_bench(custom, ep_rx, ep_tx, stop_device));
+        s.spawn(|| run_host_bench(&stop, &driver, max_speed));
     });
 
     thread::sleep(Duration::from_millis(500));
