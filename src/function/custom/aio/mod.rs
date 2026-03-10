@@ -294,7 +294,7 @@ impl Driver {
         let (done_tx, done_rx) = mpsc::channel();
 
         let aio = Arc::new(Context::new(queue_length)?);
-        let eventfd = EventFd::new(0, true)?;
+        let eventfd = EventFd::new(0, false)?;
 
         #[cfg(feature = "tokio")]
         let notify = Arc::new(tokio::sync::Notify::new());
