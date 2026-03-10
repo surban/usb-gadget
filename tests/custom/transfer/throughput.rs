@@ -256,25 +256,22 @@ fn run_host_bench(stop: &AtomicBool, driver: &str, max_speed: Speed) {
 
     // In release mode, verify that throughput meets the expected floor for
     // this UDC driver and speed.
-    #[cfg(not(debug_assertions))]
-    if let Some(min) = min_throughput_mib_s(driver, max_speed) {
-        println!("Throughput floor for driver={driver} speed={max_speed}: {min:.0} MiB/s");
-        assert!(
-            in_mib_s >= min,
-            "IN throughput {in_mib_s:.1} MiB/s is below the {min:.0} MiB/s floor \
+    if cfg!(not(debug_assertions)) {
+        if let Some(min) = min_throughput_mib_s(driver, max_speed) {
+            println!("Throughput floor for driver={driver} speed={max_speed}: {min:.0} MiB/s");
+            assert!(
+                in_mib_s >= min,
+                "IN throughput {in_mib_s:.1} MiB/s is below the {min:.0} MiB/s floor \
              (driver={driver}, speed={max_speed})",
-        );
-        assert!(
-            out_mib_s >= min,
-            "OUT throughput {out_mib_s:.1} MiB/s is below the {min:.0} MiB/s floor \
+            );
+            assert!(
+                out_mib_s >= min,
+                "OUT throughput {out_mib_s:.1} MiB/s is below the {min:.0} MiB/s floor \
              (driver={driver}, speed={max_speed})",
-        );
-        println!("Throughput floor check passed (>= {min:.0} MiB/s)");
+            );
+            println!("Throughput floor check passed (>= {min:.0} MiB/s)");
+        }
     }
-
-    // Suppress unused variable warnings in debug mode.
-    #[cfg(debug_assertions)]
-    let _ = (driver, max_speed);
 
     // Signal device to stop (also done by StopGuard on panic).
     stop.store(true, Ordering::Relaxed);
