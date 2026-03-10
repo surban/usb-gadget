@@ -2,10 +2,7 @@
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_HID` must be enabled.
 
-use std::{
-    ffi::OsString,
-    io::{Error, ErrorKind, Result},
-};
+use std::{ffi::OsString, io::Result, path::PathBuf};
 
 use super::{
     util::{FunctionDir, Status},
@@ -83,13 +80,11 @@ impl Hid {
 
     /// Device major and minor numbers.
     pub fn device(&self) -> Result<(u32, u32)> {
-        let dev = self.dir.read_string("dev")?;
-        let Some((major, minor)) = dev.split_once(':') else {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid device number format"));
-        };
-        let major = major.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
-        let minor = minor.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
+        self.dir.dev_numbers()
+    }
 
-        Ok((major, minor))
+    /// Device path in `/dev`.
+    pub fn device_path(&self) -> Result<PathBuf> {
+        self.dir.dev_path()
     }
 }

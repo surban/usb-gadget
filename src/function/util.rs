@@ -264,6 +264,50 @@ impl FunctionDir {
         log::debug!("creating symlink {} -> {}", link.display(), target.display());
         std::os::unix::fs::symlink(target, link)
     }
+
+    /// Device major and minor numbers.
+    ///
+    /// Reads the `dev` property from configfs, which contains the device
+    /// numbers in the `major:minor` format.
+    ///
+    /// Not all function types expose a `dev` property.
+    pub fn dev_numbers(&self) -> Result<(u32, u32)> {
+        let dev = self.read_string("dev")?;
+        let Some((major, minor)) = dev.split_once(':') else {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid device number format"));
+        };
+        let major = major.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
+        let minor = minor.parse().map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
+        Ok((major, minor))
+    }
+
+    /// The device path in `/dev` that corresponds to this function.
+    ///
+    /// Not all function types expose a `dev` property.
+    pub fn dev_path(&self) -> Result<PathBuf> {
+        let (major, minor) = self.dev_numbers()?;
+        dev_path(major, minor)
+    }
+}
+
+/// Find the device path in `/dev` for the given major and minor numbers.
+///
+/// Scans `/dev` (non-recursively) for a character device with matching
+/// device numbers.
+pub fn dev_path(major: u32, minor: u32) -> Result<PathBuf> {
+    use std::os::{linux::fs::MetadataExt, unix::fs::FileTypeExt};
+
+    let target = rustix::fs::makedev(major, minor);
+
+    for entry in fs::read_dir("/dev")? {
+        let Ok(entry) = entry else { continue };
+        let Ok(meta) = entry.metadata() else { continue };
+        if meta.file_type().is_char_device() && meta.st_rdev() == target {
+            return Ok(entry.path());
+        }
+    }
+
+    Err(Error::new(ErrorKind::NotFound, format!("no device file found in /dev for {major}:{minor}")))
 }
 
 /// Split configfs function directory path into driver name and instance name.

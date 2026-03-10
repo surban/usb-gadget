@@ -24,7 +24,11 @@ fn hid() {
 
     let reg = reg(func);
 
-    println!("HID device {:?} at {}", hid.device().unwrap(), hid.status().path().unwrap().display());
+    let (major, minor) = hid.device().unwrap();
+    println!("HID device {major}:{minor} at {}", hid.status().path().unwrap().display());
+    let dev_path = hid.device_path().unwrap();
+    println!("HID device path: {}", dev_path.display());
+    assert!(dev_path.exists(), "HID device path {dev_path:?} does not exist");
 
     check_host(|_device, cfg| {
         let intf = cfg.interface_alt_settings().find(|desc| desc.class() == 3);

@@ -20,7 +20,7 @@ bytes = "1.4"
 libc = "0.2"
 log = "0.4"
 macaddr = "1.0"
-rustix = { version = "1", features = ["mount", "event", "system"] }
+rustix = { version = "1", features = ["fs", "mount", "event", "system", "time"] }
 proc-mounts = "0.3"
 strum = { version = "0.28", features = ["derive"] }
 tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
@@ -41,4 +41,3 @@ doc-scrape-examples = true
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
-
