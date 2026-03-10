@@ -86,6 +86,15 @@ impl Udc {
         fs::write(self.dir.join("soft_connect"), if connect { "connect" } else { "disconnect" })
     }
 
+    /// The kernel driver managing this USB device controller, e.g. `dwc2`, `dwc3`,
+    /// `dummy_udc`, `musb-hdrc`, `cdns3`.
+    pub fn driver(&self) -> Result<OsString> {
+        let target = fs::read_link(self.dir.join("device/driver"))?;
+        target.file_name().map(|n| n.to_os_string()).ok_or_else(|| {
+            Error::new(ErrorKind::NotFound, "UDC driver symlink has no file name")
+        })
+    }
+
     /// Name of currently running USB Gadget Driver.
     pub fn function(&self) -> Result<Option<OsString>> {
         let data = OsString::from_vec(fs::read(self.dir.join("function"))?);
