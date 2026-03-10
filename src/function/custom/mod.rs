@@ -1393,6 +1393,22 @@ impl<'a> EndpointControl<'a> {
 }
 
 /// USB endpoint from device to host sender.
+///
+/// Sending is asynchronous and uses a queue backed by Linux AIO. Data is
+/// enqueued with [`send`](Self::send) (or [`try_send`](Self::try_send) /
+/// [`send_async`](Self::send_async)) and submitted to the kernel immediately.
+/// The kernel performs the actual USB transfer in the background.
+///
+/// To wait for all enqueued transfers to complete, call [`flush`](Self::flush).
+/// For a combined enqueue-and-wait operation, use
+/// [`send_and_flush`](Self::send_and_flush).
+///
+/// [`send`](Self::send), [`send_async`](Self::send_async) and
+/// [`send_timeout`](Self::send_timeout) automatically wait for queue space.
+/// When using [`try_send`](Self::try_send) directly, call
+/// [`ready`](Self::ready), [`ready_timeout`](Self::ready_timeout), or
+/// [`try_ready`](Self::try_ready) first to ensure space is available.
+/// These also surface errors from previously completed transfers.
 #[derive(Debug)]
 pub struct EndpointSender(value::Receiver<EndpointIo>);
 
@@ -1603,6 +1619,23 @@ impl EndpointSender {
 }
 
 /// USB endpoint from host to device receiver.
+///
+/// Receiving is asynchronous and uses a queue backed by Linux AIO. Empty
+/// buffers are enqueued with [`recv`](Self::recv) (or [`try_recv`](Self::try_recv) /
+/// [`recv_async`](Self::recv_async)) and submitted to the kernel, which fills
+/// them in the background as USB data arrives.
+///
+/// Filled buffers are retrieved with [`fetch`](Self::fetch),
+/// [`fetch_timeout`](Self::fetch_timeout), or [`try_fetch`](Self::try_fetch).
+/// For a combined enqueue-and-wait operation, use
+/// [`recv_and_fetch`](Self::recv_and_fetch).
+///
+/// [`recv`](Self::recv), [`recv_async`](Self::recv_async) and
+/// [`recv_timeout`](Self::recv_timeout) automatically wait for queue space
+/// by fetching completed buffers, which they return.
+/// When using [`try_recv`](Self::try_recv) directly, call
+/// [`is_ready`](Self::is_ready) first or fetch completed buffers
+/// to ensure space is available.
 ///
 /// # Buffer size and zero-length packets (ZLP)
 ///
