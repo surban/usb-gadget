@@ -1,0 +1,59 @@
+name: Test with dummy_hcd
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+env:
+  CARGO_TERM_COLOR: always
+  KERNEL_VERSION: "6.15.3"
+
+jobs:
+  test-dummy-hcd:
+    name: Tests with dummy_hcd loopback UDC (virtme-ng)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update
+
+      - name: Install virtme-ng and dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 zstd busybox-static
+          pip3 install --user virtme-ng
+
+      - name: Cache kernel tarball
+        id: cache-kernel
+        uses: actions/cache@v4
+        with:
+          path: .ci/kernel-${{ env.KERNEL_VERSION }}.tar.zst
+          key: ci-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('.ci/usb-gadget.config', '.ci/build-kernel.sh') }}
+
+      - name: Install kernel build deps
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            build-essential flex bison libelf-dev libssl-dev bc
+
+      - name: Build kernel
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
+        run: .ci/build-kernel.sh --kernel-version "$KERNEL_VERSION"
+
+      - name: Build (release, all features)
+        run: cargo build --release --all-features --all-targets
+
+      - name: Run tests in VM
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".ci/cargo-test-runner.sh"
+          cargo test --release --all-features \
+            -- --nocapture --test-threads=1 --skip audio --skip video
+        timeout-minutes: 15
