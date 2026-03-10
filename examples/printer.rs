@@ -6,7 +6,9 @@
 use rustix::ioctl::{self, opcode};
 use std::{
     fs::{File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Read, Result, Write},
+    thread,
+    time::Duration,
 };
 
 use usb_gadget::{
@@ -25,14 +27,14 @@ const PRINT_EXIT_COUNT: u8 = 1;
 const DEFAULT_STATUS: StatusFlags =
     StatusFlags::from_bits_truncate(StatusFlags::NOT_ERROR.bits() | StatusFlags::SELECTED.bits());
 
-fn ioctl_read_printer_status(file: &File) -> io::Result<u8> {
+fn ioctl_read_printer_status(file: &File) -> Result<u8> {
     let getter = unsafe {
         ioctl::Getter::<{ opcode::read::<u8>(GADGET_IOC_MAGIC, GADGET_GET_PRINTER_STATUS) }, u8>::new()
     };
     Ok(unsafe { ioctl::ioctl(file, getter) }?)
 }
 
-fn ioctl_write_printer_status(file: &File, status: u8) -> io::Result<()> {
+fn ioctl_write_printer_status(file: &File, status: u8) -> Result<()> {
     let mut value = status;
     unsafe {
         ioctl::ioctl(
@@ -45,7 +47,7 @@ fn ioctl_write_printer_status(file: &File, status: u8) -> io::Result<()> {
     Ok(())
 }
 
-fn create_printer_gadget() -> io::Result<RegGadget> {
+fn create_printer_gadget() -> Result<RegGadget> {
     usb_gadget::remove_all().expect("cannot remove all gadgets");
 
     let udc = default_udc().expect("cannot get UDC");
@@ -63,7 +65,7 @@ fn create_printer_gadget() -> io::Result<RegGadget> {
     Ok(reg)
 }
 
-fn read_printer_data(file: &mut File) -> io::Result<()> {
+fn read_printer_data(file: &mut File) -> Result<()> {
     let mut buf = [0u8; BUF_SIZE];
     let mut printed = 0;
     println!("Will exit after printing {} pages...", PRINT_EXIT_COUNT);
@@ -89,7 +91,7 @@ fn read_printer_data(file: &mut File) -> io::Result<()> {
     Ok(())
 }
 
-fn set_printer_status(file: &File, flags: StatusFlags, clear: bool) -> io::Result<StatusFlags> {
+fn set_printer_status(file: &File, flags: StatusFlags, clear: bool) -> Result<StatusFlags> {
     let mut status = get_printer_status(file)?;
     if clear {
         status.remove(flags);
@@ -102,7 +104,7 @@ fn set_printer_status(file: &File, flags: StatusFlags, clear: bool) -> io::Resul
     Ok(StatusFlags::from_bits_truncate(bits))
 }
 
-fn get_printer_status(file: &File) -> io::Result<StatusFlags> {
+fn get_printer_status(file: &File) -> Result<StatusFlags> {
     let status = ioctl_read_printer_status(file)?;
     log::debug!("Got printer status: {:08b}", status);
     let status = StatusFlags::from_bits_truncate(status);
@@ -128,7 +130,7 @@ fn print_status(status: StatusFlags) {
     }
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<()> {
     env_logger::init();
 
     // create printer gadget, will unbind on drop
@@ -139,10 +141,10 @@ fn main() -> io::Result<()> {
     println!("Printer gadget created: {}", g_printer.path().display());
 
     // wait for device file creation
-    println!("Attempt open device path: {}", DEV_PATH);
+    println!("Attempt open device path: {DEV_PATH}");
     let mut count = 0;
     let mut file = loop {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(1));
 
         match OpenOptions::new().read(true).write(true).open(DEV_PATH) {
             Ok(file) => break file,
