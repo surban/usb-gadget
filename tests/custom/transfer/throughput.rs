@@ -21,7 +21,7 @@ use std::{
 use usb_gadget::{
     default_udc,
     function::custom::{Custom, Endpoint, EndpointDirection, Interface},
-    Class, Config, Gadget, Id, Strings, Speed,
+    Class, Config, Gadget, Id, Speed, Strings,
 };
 
 use super::*;
@@ -67,11 +67,11 @@ fn min_throughput_mib_s(driver: &str, max_speed: Speed) -> Option<f64> {
 
     match driver {
         "dummy_udc" => Some(if is_ss { 300.0 } else { 100.0 }),
-        "dwc2"      => Some(10.0), // HS only
-        "dwc3"      => Some(if is_ss { 100.0 } else { 10.0 }),
-        "cdns3"     => Some(if is_ss { 100.0 } else { 10.0 }),
+        "dwc2" => Some(10.0), // HS only
+        "dwc3" => Some(if is_ss { 100.0 } else { 10.0 }),
+        "cdns3" => Some(if is_ss { 100.0 } else { 10.0 }),
         "musb-hdrc" => Some(5.0),
-        _           => Some(if is_ss { 50.0 } else { 5.0 }),
+        _ => Some(if is_ss { 50.0 } else { 5.0 }),
     }
 }
 

@@ -90,9 +90,10 @@ impl Udc {
     /// `dummy_udc`, `musb-hdrc`, `cdns3`.
     pub fn driver(&self) -> Result<OsString> {
         let target = fs::read_link(self.dir.join("device/driver"))?;
-        target.file_name().map(|n| n.to_os_string()).ok_or_else(|| {
-            Error::new(ErrorKind::NotFound, "UDC driver symlink has no file name")
-        })
+        target
+            .file_name()
+            .map(|n| n.to_os_string())
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "UDC driver symlink has no file name"))
     }
 
     /// Name of currently running USB Gadget Driver.
