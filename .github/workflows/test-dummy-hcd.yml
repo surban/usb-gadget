@@ -239,13 +239,8 @@ jobs:
 
           echo ""
           echo "=== UDC details ==="
-          vm bash -c 'for udc in /sys/class/udc/*; do
-            echo "UDC: $(basename "$udc")"
-            echo "  max_speed: $(cat "$udc/max_speed" 2>/dev/null || echo N/A)"
-            echo "  current_speed: $(cat "$udc/current_speed" 2>/dev/null || echo N/A)"
-            driver=$(readlink "$udc/device/driver" 2>/dev/null | xargs basename 2>/dev/null || echo N/A)
-            echo "  driver: $driver"
-          done'
+          vm cat /sys/class/udc/*/max_speed || true
+          vm cat /sys/class/udc/*/current_speed || true
 
           echo ""
           echo "=== configfs mounts ==="
