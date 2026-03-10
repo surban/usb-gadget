@@ -27,16 +27,10 @@ pub fn init() {
         env_logger::init();
 
         for gadget in registered().expect("cannot query registered gadgets") {
-            if let Some(udc) = gadget.udc().unwrap() {
-                println!(
-                    "Unbinding gadget {} from UDC {}",
-                    gadget.name().to_string_lossy(),
-                    udc.to_string_lossy()
-                );
-                gadget.bind(None).expect("cannot unbind existing gadget");
-                sleep(Duration::from_secs(1));
-            }
+            println!("Removing gadget {}", gadget.name().to_string_lossy(),);
+            gadget.remove().expect("cannot remove existing gadget");
         }
+        sleep(Duration::from_secs(1));
     });
 }
 
