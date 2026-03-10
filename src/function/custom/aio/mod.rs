@@ -39,7 +39,7 @@ impl EventFd {
         let mut buf = [0; 8];
         let n = rustix::io::read(&*self.0, &mut buf).map_err(Error::from)?;
         if n != buf.len() {
-            return Err(Error::new(ErrorKind::Other, "short read from eventfd"));
+            return Err(Error::other("short read from eventfd"));
         }
 
         Ok(u64::from_ne_bytes(buf))
@@ -50,7 +50,7 @@ impl EventFd {
         let buf = n.to_ne_bytes();
         let written = rustix::io::write(&*self.0, &buf).map_err(Error::from)?;
         if written != buf.len() {
-            return Err(Error::new(ErrorKind::Other, "short write to eventfd"));
+            return Err(Error::other("short write to eventfd"));
         }
         Ok(())
     }

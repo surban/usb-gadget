@@ -125,7 +125,7 @@ fn request_module(name: impl AsRef<OsStr>) -> Result<()> {
 
     match res {
         Ok(out) if out.status.success() => Ok(()),
-        Ok(_) => Err(Error::new(ErrorKind::Other, "modprobe failed")),
+        Ok(_) => Err(Error::other("modprobe failed")),
         Err(err) => Err(err),
     }
 }

@@ -158,7 +158,7 @@ fn main() -> io::Result<()> {
 
     print_status(set_printer_status(&file, DEFAULT_STATUS, false)?);
     if let Err(e) = read_printer_data(&mut file) {
-        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to read data from {DEV_PATH}: {e}")));
+        return Err(io::Error::other(format!("Failed to read data from {DEV_PATH}: {e}")));
     }
 
     Ok(())

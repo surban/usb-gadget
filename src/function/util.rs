@@ -402,7 +402,7 @@ pub(crate) mod value {
             match err {
                 RecvError::Empty => io::Error::new(io::ErrorKind::WouldBlock, err),
                 RecvError::Disconnected => io::Error::new(io::ErrorKind::BrokenPipe, err),
-                RecvError::Taken => io::Error::new(io::ErrorKind::Other, err),
+                RecvError::Taken => io::Error::other(err),
             }
         }
     }
