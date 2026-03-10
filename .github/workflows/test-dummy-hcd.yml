@@ -54,6 +54,8 @@ jobs:
         run: |
           set -euo pipefail
           export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".ci/cargo-test-runner.sh"
+          # The audio and video tests are skipped because dummy_hcd does not
+          # support isochronous endpoints.
           cargo test --release --all-features \
             -- --nocapture --test-threads=1 --skip audio --skip video
         timeout-minutes: 15
