@@ -534,6 +534,8 @@ impl RegGadget {
     }
 
     /// Detach the handle from the USB gadget while keeping the USB gadget active.
+    ///
+    /// This prevents the USB gadget from being deregistered when this handle is dropped.
     pub fn detach(&mut self) {
         self.attached = false;
     }
