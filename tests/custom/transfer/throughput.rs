@@ -18,7 +18,7 @@ use std::{
 use usb_gadget::{
     default_udc,
     function::custom::{Custom, Endpoint, EndpointDirection, Interface},
-    Class, Config, Gadget, Id, Strings,
+    Class, Config, Gadget, Id, Speed, Strings,
 };
 
 use super::*;
@@ -39,6 +39,7 @@ fn setup_bench_gadget() -> (
     Custom,
     usb_gadget::function::custom::EndpointReceiver,
     usb_gadget::function::custom::EndpointSender,
+    Speed,
 ) {
     let (vid, pid) = (VID, PID);
     let (ep_rx, ep_rx_dir) = EndpointDirection::host_to_device();
@@ -55,6 +56,10 @@ fn setup_bench_gadget() -> (
         .build();
 
     let udc = default_udc().expect("cannot get UDC");
+
+    let max_speed = udc.max_speed().expect("cannot query UDC max speed");
+    println!("UDC {} max speed: {max_speed}", udc.name().to_string_lossy());
+
     let reg = Gadget::new(
         Class::new(255, 255, 0),
         Id::new(vid, pid),
@@ -64,7 +69,7 @@ fn setup_bench_gadget() -> (
     .bind(&udc)
     .expect("cannot bind to UDC");
 
-    (reg, custom, ep_rx, ep_tx)
+    (reg, custom, ep_rx, ep_tx, max_speed)
 }
 
 /// Device side for the throughput benchmark: pipelined send/recv with
@@ -132,7 +137,7 @@ fn run_device_bench(
 
 /// Host side for the throughput benchmark: measures bulk IN and OUT throughput
 /// over `BENCH_TOTAL_BYTES` bytes in each direction.
-fn run_host_bench() {
+fn run_host_bench(udc_max_speed: Speed) {
     let (vid, pid) = (VID, PID);
     let (intf, ep_in, ep_out, if_num) = open_host_device(vid, pid);
 
@@ -192,6 +197,35 @@ fn run_host_bench() {
     println!("=========================================");
     println!();
 
+    // In release mode, verify that throughput meets the expected floor for the
+    // negotiated USB speed.  The thresholds are intentionally conservative
+    // (roughly half of the theoretical wire speed) so that they pass reliably
+    // on CI and loaded machines while still catching gross regressions.
+    #[cfg(not(debug_assertions))]
+    {
+        let min_mib_s: f64 = if udc_max_speed >= Speed::SuperSpeed {
+            // USB 3.0+: wire speed ~476 MiB/s, expect at least 300.
+            300.0
+        } else if udc_max_speed >= Speed::HighSpeed {
+            // USB 2.0: dummy_hcd model ~406 MiB/s, expect at least 100.
+            100.0
+        } else {
+            0.0
+        };
+
+        if min_mib_s > 0.0 {
+            assert!(
+                in_mbps >= min_mib_s,
+                "IN throughput {in_mbps:.1} MiB/s is below the {min_mib_s:.0} MiB/s floor for {udc_max_speed}",
+            );
+            assert!(
+                out_mbps >= min_mib_s,
+                "OUT throughput {out_mbps:.1} MiB/s is below the {min_mib_s:.0} MiB/s floor for {udc_max_speed}",
+            );
+            println!("Throughput floor check passed (>= {min_mib_s:.0} MiB/s for {udc_max_speed})");
+        }
+    }
+
     // Signal device to stop.
     intf.control_out(
         ControlOut {
@@ -217,11 +251,11 @@ fn throughput_benchmark() {
         return;
     }
 
-    let (reg, custom, ep_rx, ep_tx) = setup_bench_gadget();
+    let (reg, custom, ep_rx, ep_tx, udc_max_speed) = setup_bench_gadget();
 
     thread::scope(|s| {
         s.spawn(|| run_device_bench(custom, ep_rx, ep_tx));
-        s.spawn(run_host_bench);
+        s.spawn(|| run_host_bench(udc_max_speed));
     });
 
     thread::sleep(Duration::from_millis(500));
