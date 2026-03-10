@@ -22,8 +22,67 @@ jobs:
 
       - name: Install kernel modules
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y linux-modules-extra-$(uname -r)
+
+          KVER=$(uname -r)
+          echo "Running kernel: $KVER"
+
+          # Install modules-extra for the running (Azure) kernel first.
+          sudo apt-get install -y "linux-modules-extra-${KVER}" || true
+
+          # The Azure kernel is built without CONFIG_USB_GADGET, so
+          # libcomposite / dummy_hcd are not shipped in its modules-extra
+          # package.  Work around this by downloading the *generic* kernel's
+          # modules-extra .deb (same upstream version) and extracting the
+          # USB gadget .ko files into the running kernel's module tree.
+          if ! modinfo libcomposite >/dev/null 2>&1; then
+            echo "libcomposite not found in Azure kernel modules — extracting from generic kernel"
+
+            # Derive the generic kernel version from the Azure one.
+            #   Azure:   6.14.0-1017-azure  →  base 6.14.0
+            #   Generic: 6.14.0-<ABI>-generic
+            BASE_KVER=$(echo "$KVER" | sed 's/-[0-9]*-azure$//')
+            echo "Base kernel version: $BASE_KVER"
+
+            # Find the matching generic modules-extra package.
+            GENERIC_PKG=$(apt-cache search "linux-modules-extra-${BASE_KVER}.*generic" \
+                          | head -1 | awk '{print $1}')
+
+            if [ -z "$GENERIC_PKG" ]; then
+              echo "ERROR: Could not find a generic linux-modules-extra package for ${BASE_KVER}"
+              apt-cache search "linux-modules-extra" | grep generic | head -10
+              exit 1
+            fi
+            echo "Generic package: $GENERIC_PKG"
+
+            # Download (don't install) and extract into a temp directory.
+            cd /tmp
+            apt-get download "$GENERIC_PKG"
+            DEB_FILE=$(ls linux-modules-extra-*generic*.deb | head -1)
+            mkdir -p /tmp/generic-modules
+            dpkg-deb -x "$DEB_FILE" /tmp/generic-modules
+
+            # Find the extracted module tree.
+            GENERIC_MODDIR=$(find /tmp/generic-modules/lib/modules -mindepth 1 -maxdepth 1 -type d | head -1)
+            echo "Generic module dir: $GENERIC_MODDIR"
+
+            # Copy USB gadget modules into the running kernel's module tree.
+            DEST="/lib/modules/${KVER}"
+            if [ -d "$GENERIC_MODDIR/kernel/drivers/usb/gadget" ]; then
+              sudo cp -rv "$GENERIC_MODDIR/kernel/drivers/usb/gadget" "$DEST/kernel/drivers/usb/"
+            fi
+            # Also copy USB common modules if present (e.g. usb-common for OTG).
+            if [ -d "$GENERIC_MODDIR/kernel/drivers/usb/common" ]; then
+              sudo cp -rv "$GENERIC_MODDIR/kernel/drivers/usb/common" "$DEST/kernel/drivers/usb/"
+            fi
+
+            # Rebuild module dependency database.
+            sudo depmod -a "$KVER"
+
+            echo "Module extraction complete"
+            cd -
+          fi
 
       - name: Load dummy_hcd and gadget modules
         run: |
@@ -37,20 +96,20 @@ jobs:
           sudo modprobe dummy_hcd is_super_speed=Y
 
           # Load all the USB gadget function modules the test suite needs.
-          sudo modprobe usb_f_fs        || echo "Warning: usb_f_fs not available"
-          sudo modprobe usb_f_acm       || echo "Warning: usb_f_acm not available"
-          sudo modprobe usb_f_serial    || sudo modprobe usb_f_gser || echo "Warning: usb_f_serial/usb_f_gser not available"
-          sudo modprobe usb_f_ecm       || echo "Warning: usb_f_ecm not available"
-          sudo modprobe usb_f_eem       || echo "Warning: usb_f_eem not available"
-          sudo modprobe usb_f_ncm       || echo "Warning: usb_f_ncm not available"
-          sudo modprobe usb_f_rndis     || echo "Warning: usb_f_rndis not available"
-          sudo modprobe usb_f_ecm_subset || sudo modprobe usb_f_subset || echo "Warning: usb_f_ecm_subset/usb_f_subset not available"
-          sudo modprobe usb_f_hid       || echo "Warning: usb_f_hid not available"
+          sudo modprobe usb_f_fs           || echo "Warning: usb_f_fs not available"
+          sudo modprobe usb_f_acm          || echo "Warning: usb_f_acm not available"
+          sudo modprobe usb_f_serial       || sudo modprobe usb_f_gser || echo "Warning: usb_f_serial/usb_f_gser not available"
+          sudo modprobe usb_f_ecm          || echo "Warning: usb_f_ecm not available"
+          sudo modprobe usb_f_eem          || echo "Warning: usb_f_eem not available"
+          sudo modprobe usb_f_ncm          || echo "Warning: usb_f_ncm not available"
+          sudo modprobe usb_f_rndis        || echo "Warning: usb_f_rndis not available"
+          sudo modprobe usb_f_ecm_subset   || sudo modprobe usb_f_subset || echo "Warning: usb_f_ecm_subset/usb_f_subset not available"
+          sudo modprobe usb_f_hid          || echo "Warning: usb_f_hid not available"
           sudo modprobe usb_f_mass_storage || echo "Warning: usb_f_mass_storage not available"
-          sudo modprobe usb_f_printer   || echo "Warning: usb_f_printer not available"
-          sudo modprobe usb_f_midi      || echo "Warning: usb_f_midi not available"
-          sudo modprobe usb_f_uac2      || echo "Warning: usb_f_uac2 not available"
-          sudo modprobe usb_f_uvc       || echo "Warning: usb_f_uvc not available"
+          sudo modprobe usb_f_printer      || echo "Warning: usb_f_printer not available"
+          sudo modprobe usb_f_midi         || echo "Warning: usb_f_midi not available"
+          sudo modprobe usb_f_uac2         || echo "Warning: usb_f_uac2 not available"
+          sudo modprobe usb_f_uvc          || echo "Warning: usb_f_uvc not available"
 
       - name: Verify dummy_hcd is loaded
         run: |
