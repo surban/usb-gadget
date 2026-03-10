@@ -80,36 +80,49 @@ jobs:
             # Rebuild module dependency database.
             sudo depmod -a "$KVER"
 
+            # Leave a marker so the load step knows to use --force-vermagic.
+            touch /tmp/.usb_gadget_modules_extracted
+
             echo "Module extraction complete"
             cd -
           fi
 
       - name: Load dummy_hcd and gadget modules
         run: |
+          # When modules were extracted from the generic kernel, they have a
+          # different vermagic (e.g. 6.14.0-24-generic vs 6.14.0-1017-azure).
+          # Use --force-vermagic so the kernel accepts them.  This is safe
+          # because both kernels share the same upstream base version and ABI.
+          FORCE=""
+          if [ -f /tmp/.usb_gadget_modules_extracted ]; then
+            FORCE="--force-vermagic"
+            echo "Using --force-vermagic for cross-kernel modules"
+          fi
+
           # Load configfs (usually already present, but be safe).
-          sudo modprobe configfs
+          sudo modprobe $FORCE configfs
 
           # Load the USB gadget core and configfs integration.
-          sudo modprobe libcomposite
+          sudo modprobe $FORCE libcomposite
 
           # Load dummy_hcd with SuperSpeed support for throughput benchmarks.
-          sudo modprobe dummy_hcd is_super_speed=Y
+          sudo modprobe $FORCE dummy_hcd is_super_speed=Y
 
           # Load all the USB gadget function modules the test suite needs.
-          sudo modprobe usb_f_fs           || echo "Warning: usb_f_fs not available"
-          sudo modprobe usb_f_acm          || echo "Warning: usb_f_acm not available"
-          sudo modprobe usb_f_serial       || sudo modprobe usb_f_gser || echo "Warning: usb_f_serial/usb_f_gser not available"
-          sudo modprobe usb_f_ecm          || echo "Warning: usb_f_ecm not available"
-          sudo modprobe usb_f_eem          || echo "Warning: usb_f_eem not available"
-          sudo modprobe usb_f_ncm          || echo "Warning: usb_f_ncm not available"
-          sudo modprobe usb_f_rndis        || echo "Warning: usb_f_rndis not available"
-          sudo modprobe usb_f_ecm_subset   || sudo modprobe usb_f_subset || echo "Warning: usb_f_ecm_subset/usb_f_subset not available"
-          sudo modprobe usb_f_hid          || echo "Warning: usb_f_hid not available"
-          sudo modprobe usb_f_mass_storage || echo "Warning: usb_f_mass_storage not available"
-          sudo modprobe usb_f_printer      || echo "Warning: usb_f_printer not available"
-          sudo modprobe usb_f_midi         || echo "Warning: usb_f_midi not available"
-          sudo modprobe usb_f_uac2         || echo "Warning: usb_f_uac2 not available"
-          sudo modprobe usb_f_uvc          || echo "Warning: usb_f_uvc not available"
+          sudo modprobe $FORCE usb_f_fs           || echo "Warning: usb_f_fs not available"
+          sudo modprobe $FORCE usb_f_acm          || echo "Warning: usb_f_acm not available"
+          sudo modprobe $FORCE usb_f_serial       || sudo modprobe $FORCE usb_f_gser || echo "Warning: usb_f_serial/usb_f_gser not available"
+          sudo modprobe $FORCE usb_f_ecm          || echo "Warning: usb_f_ecm not available"
+          sudo modprobe $FORCE usb_f_eem          || echo "Warning: usb_f_eem not available"
+          sudo modprobe $FORCE usb_f_ncm          || echo "Warning: usb_f_ncm not available"
+          sudo modprobe $FORCE usb_f_rndis        || echo "Warning: usb_f_rndis not available"
+          sudo modprobe $FORCE usb_f_ecm_subset   || sudo modprobe $FORCE usb_f_subset || echo "Warning: usb_f_ecm_subset/usb_f_subset not available"
+          sudo modprobe $FORCE usb_f_hid          || echo "Warning: usb_f_hid not available"
+          sudo modprobe $FORCE usb_f_mass_storage || echo "Warning: usb_f_mass_storage not available"
+          sudo modprobe $FORCE usb_f_printer      || echo "Warning: usb_f_printer not available"
+          sudo modprobe $FORCE usb_f_midi         || echo "Warning: usb_f_midi not available"
+          sudo modprobe $FORCE usb_f_uac2         || echo "Warning: usb_f_uac2 not available"
+          sudo modprobe $FORCE usb_f_uvc          || echo "Warning: usb_f_uvc not available"
 
       - name: Verify dummy_hcd is loaded
         run: |
