@@ -255,8 +255,9 @@ fn run_host_bench(stop: &AtomicBool, driver: &str, max_speed: Speed) {
     println!();
 
     // In release mode, verify that throughput meets the expected floor for
-    // this UDC driver and speed.
-    if cfg!(not(debug_assertions)) {
+    // this UDC driver and speed.  Set USB_GADGET_NO_THROUGHPUT_CHECK=1 to
+    // skip (e.g. on CI runners with unreliable scheduling).
+    if cfg!(not(debug_assertions)) && std::env::var_os("USB_GADGET_NO_THROUGHPUT_CHECK").is_none() {
         if let Some(min) = min_throughput_mib_s(driver, max_speed) {
             println!("Throughput floor for driver={driver} speed={max_speed}: {min:.0} MiB/s");
             assert!(

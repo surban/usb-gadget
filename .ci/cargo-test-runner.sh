@@ -20,6 +20,9 @@
 # On first invocation the tarball is extracted to a staging directory that
 # is reused for subsequent invocations (within the same tmpdir lifetime).
 #
+# Environment variables matching USB_GADGET_* and RUST_* are forwarded
+# into the VM.
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,17 +57,30 @@ BZIMAGE="$STAGING/boot/bzImage"
 # ─── Build the in-VM init script ─────────────────────────────────────
 #
 # We write a small script that:
-#   1. Loads USB gadget kernel modules.
-#   2. Runs the test binary with the original arguments.
+#   1. Exports forwarded environment variables.
+#   2. Loads USB gadget kernel modules.
+#   3. Runs the test binary with the original arguments.
 #
 # This is passed to vng --exec and runs as the VM's init task.
 
 INIT_SCRIPT="$(mktemp /tmp/ci-vm-init.XXXXXX.sh)"
 trap 'rm -f "$INIT_SCRIPT"' EXIT
 
-cat > "$INIT_SCRIPT" <<'INITEOF'
-#!/bin/bash
-set -euo pipefail
+# Forward USB_GADGET_* and RUST_* environment variables into the VM.
+{
+    echo '#!/bin/bash'
+    echo 'set -euo pipefail'
+    echo ''
+    echo '# Forwarded environment variables from host.'
+    while IFS='=' read -r key value; do
+        case "$key" in
+            USB_GADGET_*|RUST_*)
+                printf 'export %s=%q\n' "$key" "$value"
+                ;;
+        esac
+    done < <(env)
+
+    cat <<'INITEOF'
 
 # Load USB gadget modules.
 modprobe configfs
@@ -81,6 +97,7 @@ done
 # Run the test binary.
 exec "$@"
 INITEOF
+} > "$INIT_SCRIPT"
 chmod +x "$INIT_SCRIPT"
 
 # ─── Launch VM and run the test ───────────────────────────────────────
