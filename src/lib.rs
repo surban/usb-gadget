@@ -54,25 +54,25 @@ pub use lang::*;
 )]
 #[non_exhaustive]
 pub enum Speed {
-    /// USB 3.1: 10 Gbit/s.
-    #[strum(serialize = "super-speed-plus")]
-    SuperSpeedPlus,
-    /// USB 3.0: 5 Gbit/s.
-    #[strum(serialize = "super-speed")]
-    SuperSpeed,
-    /// USB 2.0: 480 Mbit/s.
-    #[strum(serialize = "high-speed")]
-    HighSpeed,
-    /// USB 1.0: 12 Mbit/s.
-    #[strum(serialize = "full-speed")]
-    FullSpeed,
-    /// USB 1.0: 1.5 Mbit/s.
-    #[strum(serialize = "low-speed")]
-    LowSpeed,
     /// Unknown speed.
     #[default]
     #[strum(serialize = "UNKNOWN")]
     Unknown,
+    /// USB 1.0: 1.5 Mbit/s.
+    #[strum(serialize = "low-speed")]
+    LowSpeed,
+    /// USB 1.0: 12 Mbit/s.
+    #[strum(serialize = "full-speed")]
+    FullSpeed,
+    /// USB 2.0: 480 Mbit/s.
+    #[strum(serialize = "high-speed")]
+    HighSpeed,
+    /// USB 3.0: 5 Gbit/s.
+    #[strum(serialize = "super-speed")]
+    SuperSpeed,
+    /// USB 3.1: 10 Gbit/s.
+    #[strum(serialize = "super-speed-plus")]
+    SuperSpeedPlus,
 }
 
 /// 8-bit value to hexadecimal notation.
