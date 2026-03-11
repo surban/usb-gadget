@@ -1,0 +1,24 @@
+# USB mass storage gadget example.
+#
+# Usage:
+#   usb-gadget up examples/config/mass-storage.toml
+
+name = "mass-storage"
+
+[device]
+vendor = 0x1209
+product = 0x0004
+manufacturer = "Example Inc."
+product_name = "USB Storage"
+serial = "0001"
+
+[[config]]
+description = "Mass Storage"
+
+[[config.function]]
+type = "msd"
+stall = true
+
+[[config.function.lun]]
+file = "/tmp/disk.img"
+removable = true

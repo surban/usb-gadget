@@ -1,0 +1,33 @@
+# USB Video Class (UVC) webcam gadget example.
+#
+# Usage:
+#   usb-gadget up examples/config/webcam.toml
+
+name = "webcam"
+
+[device]
+vendor = 0x1209
+product = 0x0006
+manufacturer = "Example Inc."
+product_name = "USB Webcam"
+serial = "0001"
+usb_version = "2.0"
+
+[[config]]
+description = "UVC Config"
+
+[[config.function]]
+type = "video"
+streaming_max_packet = 3072
+
+[[config.function.frame]]
+width = 640
+height = 480
+format = "yuyv"
+fps = [30, 15]
+
+[[config.function.frame]]
+width = 1280
+height = 720
+format = "mjpeg"
+fps = [30, 15, 5]

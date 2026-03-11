@@ -1,0 +1,22 @@
+# USB Ethernet (ECM) gadget example.
+#
+# Usage:
+#   usb-gadget up examples/config/ethernet.toml
+
+name = "ethernet"
+
+[device]
+vendor = 0x1209
+product = 0x0003
+manufacturer = "Example Inc."
+product_name = "USB Ethernet"
+serial = "0001"
+
+[[config]]
+description = "ECM Network"
+
+[[config.function]]
+type = "net"
+class = "ecm"
+dev_addr = "aa:bb:cc:dd:ee:f0"
+host_addr = "aa:bb:cc:dd:ee:f1"

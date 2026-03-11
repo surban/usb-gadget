@@ -1,0 +1,23 @@
+# USB printer gadget example.
+#
+# Usage:
+#   usb-gadget up examples/config/printer.toml
+#   usb-gadget down printer
+
+name = "printer"
+
+[device]
+vendor = 0x1209
+product = 0x0001
+manufacturer = "Example Inc."
+product_name = "USB Printer"
+serial = "0001"
+
+[[config]]
+description = "Default"
+max_power = 250
+
+[[config.function]]
+type = "printer"
+pnp_string = "MFG:Example Inc.;MDL:USB Printer;CLS:PRINTER;"
+qlen = 10

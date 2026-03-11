@@ -25,24 +25,71 @@ The following pre-defined USB functions, implemented by kernel drivers, are avai
 * mass-storage device (MSD)
 * printer device
 * musical instrument digital interface (MIDI)
-* audio device (UAC2)
+* audio device (UAC1 and UAC2)
 * video device (UVC)
 
 In addition fully custom USB functions can be implemented in user-mode Rust code.
 
 Support for OS-specific descriptors and WebUSB is also provided.
 
+CLI tool
+--------
+
+The `usb-gadget` CLI tool allows you to configure USB gadgets from TOML configuration
+files without writing any Rust code.
+
+### Installation
+
+    cargo install usb-gadget --features cli
+
+### Usage
+
+Create a TOML configuration file describing your gadget, then use the CLI to manage it:
+
+    usb-gadget up gadget.toml       # register and bind a gadget
+    usb-gadget list                 # list registered gadgets
+    usb-gadget down my-gadget       # remove a gadget by name
+    usb-gadget down --all           # remove all gadgets
+    usb-gadget check gadget.toml    # validate a config file
+
+You can also pass a directory to `up` or `check` to process all `.toml` files in it.
+
+### Example configuration
+
+```toml
+name = "serial-debug"
+
+[device]
+vendor = 0x1209
+product = 0x0002
+manufacturer = "Example Inc."
+product_name = "Debug Console"
+serial = "0001"
+
+[[config]]
+description = "Serial Config"
+
+[[config.function]]
+type = "serial"
+class = "acm"
+```
+
+Multiple functions can be combined in a single gadget by adding more `[[config.function]]`
+entries. See the `examples/config/` directory for more examples covering all supported
+function types.
+
 Features
 --------
 
 This crate provides the following optional features:
 
+* `cli`: builds the `usb-gadget` CLI tool for configuring gadgets from TOML files.
 * `tokio`: enables async support for custom USB functions on top of the Tokio runtime.
 
 Requirements
 ------------
 
-The minimum support Rust version (MSRV) is 1.73.
+The minimum supported Rust version (MSRV) is 1.77.
 
 A USB device controller (UDC) supported by Linux is required. Normally, standard
 PCs *do not* include an UDC.
@@ -64,6 +111,7 @@ The following Linux kernel configuration options should be enabled for full func
   * `CONFIG_USB_CONFIGFS_F_HID`
   * `CONFIG_USB_CONFIGFS_F_PRINTER`
   * `CONFIG_USB_CONFIGFS_F_MIDI`
+  * `CONFIG_USB_CONFIGFS_F_UAC1`
   * `CONFIG_USB_CONFIGFS_F_UAC2`
   * `CONFIG_USB_CONFIGFS_F_UVC`
 

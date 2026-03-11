@@ -12,18 +12,23 @@ edition = "2021"
 
 [features]
 default = []
+cli = ["dep:clap", "dep:serde", "dep:toml", "dep:env_logger"]
 
 [dependencies]
 bitflags = "2.4"
 byteorder = "1"
 bytes = "1.4"
+clap = { version = "4", features = ["derive"], optional = true }
+env_logger = { version = "0.11", optional = true }
 libc = "0.2"
 log = "0.4"
 macaddr = "1.0"
 rustix = { version = "1", features = ["fs", "mount", "event", "system", "time"] }
 proc-mounts = "0.3"
+serde = { version = "1", features = ["derive"], optional = true }
 strum = { version = "0.28", features = ["derive"] }
 tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
+toml = { version = "0.9", optional = true }
 uuid = "1"
 
 [dev-dependencies]
@@ -38,6 +43,11 @@ tokio = { version = "1", features = ["macros", "time"] }
 name = "custom_interface_device_async"
 required-features = ["tokio"]
 doc-scrape-examples = true
+
+[[bin]]
+name = "usb-gadget"
+path = "src/bin/usb-gadget/main.rs"
+required-features = ["cli"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -1,0 +1,36 @@
+# Multi-function composite gadget example.
+# Combines serial console + network + mass storage in one gadget.
+#
+# Usage:
+#   usb-gadget up examples/config/composite.toml
+
+name = "composite"
+
+[device]
+vendor = 0x1209
+product = 0x0010
+manufacturer = "Example Inc."
+product_name = "Composite Device"
+serial = "0001"
+class = 0xef
+sub_class = 2
+protocol = 1
+
+[[config]]
+description = "Composite Config"
+
+[[config.function]]
+type = "serial"
+class = "acm"
+
+[[config.function]]
+type = "net"
+class = "ecm"
+
+[[config.function]]
+type = "msd"
+
+[[config.function.lun]]
+file = "/tmp/disk.img"
+removable = true
+read_only = true

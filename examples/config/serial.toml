@@ -1,0 +1,20 @@
+# USB serial (ACM) gadget example.
+#
+# Usage:
+#   usb-gadget up examples/config/serial.toml
+
+name = "serial-debug"
+
+[device]
+vendor = 0x1209
+product = 0x0002
+manufacturer = "Example Inc."
+product_name = "Debug Console"
+serial = "0001"
+
+[[config]]
+description = "Serial Config"
+
+[[config.function]]
+type = "serial"
+class = "acm"
