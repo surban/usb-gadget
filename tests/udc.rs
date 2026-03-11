@@ -15,6 +15,7 @@ fn query_udcs() {
         println!("Current speed: {:?}", udc.current_speed().unwrap());
         println!("Max speed: {:?}", udc.max_speed().unwrap());
         println!("State: {:?}", udc.state().unwrap());
+        println!("Driver: {:?}", udc.driver().unwrap());
         println!("Function: {:?}", udc.function().unwrap());
         println!();
     }
