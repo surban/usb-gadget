@@ -10,7 +10,7 @@ use super::{
     util::{FunctionDir, Status},
     Function, Handle,
 };
-use crate::{gadget::Class, hex_u8};
+use crate::{gadget::Class, hex_u8_noprefix};
 
 /// Class of USB network device.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,9 +104,9 @@ impl Function for NetFunction {
         }
 
         if let (NetClass::Rndis, Some(class)) = (self.builder.net_class, self.builder.interface_class) {
-            self.dir.write("class", hex_u8(class.class))?;
-            self.dir.write("subclass", hex_u8(class.sub_class))?;
-            self.dir.write("protocol", hex_u8(class.protocol))?;
+            self.dir.write("class", hex_u8_noprefix(class.class))?;
+            self.dir.write("subclass", hex_u8_noprefix(class.sub_class))?;
+            self.dir.write("protocol", hex_u8_noprefix(class.protocol))?;
         }
 
         Ok(())

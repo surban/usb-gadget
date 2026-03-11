@@ -105,6 +105,11 @@ fn hex_u8(value: u8) -> String {
     format!("0x{:02x}", value)
 }
 
+/// 8-bit value to hexadecimal notation without 0x prefix.
+fn hex_u8_noprefix(value: u8) -> String {
+    format!("{:02x}", value)
+}
+
 /// 16-bit value to hexadecimal notation.
 fn hex_u16(value: u16) -> String {
     format!("0x{:04x}", value)
