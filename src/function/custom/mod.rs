@@ -41,6 +41,11 @@ pub(crate) fn driver() -> &'static OsStr {
 
 pub use ffs::CustomDesc;
 
+/// Converts an AIO buffer into a read buffer (BytesMut).
+fn into_read_buffer(buf: aio::Buffer) -> Result<BytesMut> {
+    buf.try_into().map_err(|_| Error::new(ErrorKind::InvalidData, "unexpected write buffer in receive queue"))
+}
+
 /// USB DFU (Device Firmware Upgrade) functional descriptor.
 ///
 /// This descriptor is placed after a DFU interface descriptor and advertises the
@@ -969,7 +974,7 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
     for mount in MountIter::new()? {
         let Ok(mount) = mount else { continue };
 
-        if ffs::FS_TYPE.to_str().unwrap() == mount.fstype && mount.source == instance {
+        if ffs::FS_TYPE.to_bytes() == mount.fstype.as_bytes() && mount.source == instance {
             log::debug!("unmounting functionfs {} from {}", instance.to_string_lossy(), mount.dest.display());
             if let Err(err) = ffs::umount(&mount.dest, false) {
                 log::debug!("unmount failed, trying lazy unmount: {err}");
@@ -1069,7 +1074,7 @@ impl Custom {
             return Err(Error::new(ErrorKind::InvalidData, "invalid event size"));
         }
         let raw_event = ffs::Event::parse(&buf)?;
-        Ok(Event::from_ffs(raw_event, self))
+        Event::from_ffs(raw_event, self)
     }
 
     /// Wait for an event for the specified duration.
@@ -1178,25 +1183,26 @@ pub enum Event<'a> {
 }
 
 impl<'a> Event<'a> {
-    fn from_ffs(raw: ffs::Event, custom: &'a mut Custom) -> Self {
+    fn from_ffs(raw: ffs::Event, custom: &'a mut Custom) -> Result<Self> {
         match raw.event_type {
-            ffs::event::BIND => Self::Bind,
-            ffs::event::UNBIND => Self::Unbind,
-            ffs::event::ENABLE => Self::Enable,
-            ffs::event::DISABLE => Self::Disable,
-            ffs::event::SUSPEND => Self::Suspend,
-            ffs::event::RESUME => Self::Resume,
+            ffs::event::BIND => Ok(Self::Bind),
+            ffs::event::UNBIND => Ok(Self::Unbind),
+            ffs::event::ENABLE => Ok(Self::Enable),
+            ffs::event::DISABLE => Ok(Self::Disable),
+            ffs::event::SUSPEND => Ok(Self::Suspend),
+            ffs::event::RESUME => Ok(Self::Resume),
             ffs::event::SETUP => {
-                let ctrl_req = ffs::CtrlReq::parse(&raw.data).unwrap();
+                let ctrl_req =
+                    ffs::CtrlReq::parse(&raw.data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
                 if (ctrl_req.request_type & ffs::DIR_IN) != 0 {
                     custom.setup_event = Some(Direction::DeviceToHost);
-                    Self::SetupDeviceToHost(CtrlSender { ctrl_req, custom })
+                    Ok(Self::SetupDeviceToHost(CtrlSender { ctrl_req, custom }))
                 } else {
                     custom.setup_event = Some(Direction::HostToDevice);
-                    Self::SetupHostToDevice(CtrlReceiver { ctrl_req, custom })
+                    Ok(Self::SetupHostToDevice(CtrlReceiver { ctrl_req, custom }))
                 }
             }
-            other => Self::Unknown(other),
+            other => Ok(Self::Unknown(other)),
         }
     }
 }
@@ -1818,7 +1824,7 @@ impl EndpointReceiver {
     /// Blocks until the operation completes and returns its result.
     pub fn recv_and_fetch(&mut self, buf: BytesMut) -> Result<BytesMut> {
         self.try_recv(buf)?;
-        Ok(self.fetch()?.unwrap())
+        self.fetch()?.ok_or_else(|| Error::other("receive queue unexpectedly empty"))
     }
 
     /// Receive data synchronously with a timeout.
@@ -1936,7 +1942,7 @@ impl EndpointReceiver {
             return Ok(None);
         };
 
-        Ok(Some(comp.result()?.try_into().unwrap()))
+        Ok(Some(into_read_buffer(comp.result()?)?))
     }
 
     /// Asynchronously waits for data to be received into a previously enqueued receive buffer, then
@@ -1951,7 +1957,7 @@ impl EndpointReceiver {
             return Ok(None);
         };
 
-        Ok(Some(comp.result()?.try_into().unwrap()))
+        Ok(Some(into_read_buffer(comp.result()?)?))
     }
 
     /// Waits for data to be received into a previously enqueued receive buffer with a timeout,
@@ -1965,7 +1971,7 @@ impl EndpointReceiver {
             return Ok(None);
         };
 
-        Ok(Some(comp.result()?.try_into().unwrap()))
+        Ok(Some(into_read_buffer(comp.result()?)?))
     }
 
     /// If data has been received into a previously enqueued receive buffer, returns it.
@@ -1975,9 +1981,8 @@ impl EndpointReceiver {
         let io = self.0.get()?;
 
         let Some(comp) = io.aio.try_completed() else { return Ok(None) };
-        let data = comp.result()?;
 
-        Ok(Some(data.try_into().unwrap()))
+        Ok(Some(into_read_buffer(comp.result()?)?))
     }
 
     /// Removes all buffers from the receive queue and clears all errors.

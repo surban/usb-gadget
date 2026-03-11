@@ -177,14 +177,16 @@ impl FunctionDir {
     /// Driver name.
     pub fn driver(&self) -> Result<OsString> {
         let dir = self.dir()?;
-        let (driver, _instance) = split_function_dir(&dir).unwrap();
+        let (driver, _instance) = split_function_dir(&dir)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid function directory name"))?;
         Ok(driver.to_os_string())
     }
 
     /// Instance name.
     pub fn instance(&self) -> Result<OsString> {
         let dir = self.dir()?;
-        let (_driver, instance) = split_function_dir(&dir).unwrap();
+        let (_driver, instance) = split_function_dir(&dir)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid function directory name"))?;
         Ok(instance.to_os_string())
     }
 

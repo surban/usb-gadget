@@ -193,10 +193,12 @@ impl Op {
         assert_eq!(event.data, self.iocb.data);
 
         let result = if event.res >= 0 {
-            unsafe { self.buf.assume_init(event.res.try_into().unwrap()) };
+            let len = usize::try_from(event.res).unwrap_or(usize::MAX);
+            unsafe { self.buf.assume_init(len) };
             Ok(self.buf)
         } else {
-            Err(Error::from_raw_os_error(-i32::try_from(event.res).unwrap()))
+            let errno = i32::try_from(-event.res).unwrap_or(i32::MAX);
+            Err(Error::from_raw_os_error(errno))
         };
 
         CompletedOp { id: event.data, res: event.res, res2: event.res2, result }
