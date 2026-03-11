@@ -1,0 +1,71 @@
+name: Build CLI
+
+on:
+  push:
+    branches: ["master"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["master"]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_OPT_LEVEL: z
+  CARGO_PROFILE_RELEASE_LTO: true
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+  CARGO_PROFILE_RELEASE_PANIC: abort
+  CARGO_PROFILE_RELEASE_STRIP: true
+
+jobs:
+  build-cli:
+    name: CLI ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            artifact: usb-gadget-x86_64-linux-musl
+          - target: aarch64-unknown-linux-musl
+            artifact: usb-gadget-aarch64-linux-musl
+          - target: armv7-unknown-linux-musleabihf
+            artifact: usb-gadget-armv7-linux-musleabihf
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build CLI binary
+        run: cross build --release --features cli --target ${{ matrix.target }}
+
+      - name: Rename binary
+        run: cp target/${{ matrix.target }}/release/usb-gadget ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Attach binaries to release
+    needs: build-cli
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            usb-gadget-x86_64-linux-musl/usb-gadget-x86_64-linux-musl
+            usb-gadget-aarch64-linux-musl/usb-gadget-aarch64-linux-musl
+            usb-gadget-armv7-linux-musleabihf/usb-gadget-armv7-linux-musleabihf
