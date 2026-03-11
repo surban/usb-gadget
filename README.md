@@ -75,8 +75,7 @@ class = "acm"
 ```
 
 Multiple functions can be combined in a single gadget by adding more `[[config.function]]`
-entries. See the `examples/config/` directory for more examples covering all supported
-function types.
+entries. Run `usb-gadget template --list` to see all available templates.
 
 Features
 --------

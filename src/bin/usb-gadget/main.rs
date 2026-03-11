@@ -6,11 +6,12 @@ mod config;
 use std::{
     ffi::OsStr,
     fs,
-    io::{Error, ErrorKind, Result},
+    io::{self, Error, ErrorKind, Result},
     path::PathBuf,
 };
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use usb_gadget::{default_udc, registered, remove_all, udcs, Udc};
 
 use crate::config::GadgetConfig;
@@ -54,6 +55,13 @@ enum Command {
         #[arg(long)]
         list: bool,
     },
+    /// List USB device controllers (UDCs).
+    Udc,
+    /// Generate shell completions.
+    Completions {
+        /// Shell to generate completions for.
+        shell: Shell,
+    },
 }
 
 fn main() {
@@ -73,6 +81,8 @@ fn run(cli: Cli) -> Result<()> {
         Command::List => cmd_list(),
         Command::Check { path } => cmd_check(&path),
         Command::Template { name, list } => cmd_template(name.as_deref(), list),
+        Command::Udc => cmd_udc(),
+        Command::Completions { shell } => cmd_completions(shell),
     }
 }
 
@@ -151,10 +161,29 @@ fn cmd_list() -> Result<()> {
             Some(u) => u.to_string_lossy().to_string(),
             None => "(unbound)".to_string(),
         };
-        println!("{name}\t{udc}");
+        let functions = gadget.functions()?;
+        if functions.is_empty() {
+            println!("{name}\t{udc}");
+        } else {
+            println!("{name}\t{udc}\t[{}]", format_functions(&functions));
+        }
     }
 
     Ok(())
+}
+
+/// Format function list for display, collapsing duplicates.
+fn format_functions(functions: &[usb_gadget::RegFunction]) -> String {
+    use std::collections::BTreeMap;
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for f in functions {
+        *counts.entry(f.driver()).or_insert(0) += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(driver, count)| if count > 1 { format!("{driver} x{count}") } else { driver.to_string() })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn cmd_check(path: &PathBuf) -> Result<()> {
@@ -232,6 +261,31 @@ const TEMPLATES: &[(&str, &str)] = &[
     ("composite", include_str!("templates/composite.toml")),
 ];
 
+fn cmd_udc() -> Result<()> {
+    let controllers = udcs()?;
+    if controllers.is_empty() {
+        println!("no UDCs found");
+        return Ok(());
+    }
+
+    for udc in &controllers {
+        let name = udc.name().to_string_lossy();
+        let state = udc.state().map(|s| s.to_string()).unwrap_or_default();
+        let speed = udc.current_speed().map(|s| s.to_string()).unwrap_or_default();
+        let max_speed = udc.max_speed().map(|s| s.to_string()).unwrap_or_default();
+        let driver = udc.driver().map(|d| d.to_string_lossy().to_string()).unwrap_or_default();
+        let function = udc.function().ok().flatten().map(|f| f.to_string_lossy().to_string());
+
+        print!("{name}\t{driver}\t{state}\t{speed}\t{max_speed}");
+        if let Some(func) = function {
+            print!("\t{func}");
+        }
+        println!();
+    }
+
+    Ok(())
+}
+
 fn cmd_template(name: Option<&str>, list: bool) -> Result<()> {
     if list || name.is_none() {
         println!("Available templates:");
@@ -253,5 +307,11 @@ fn cmd_template(name: Option<&str>, list: bool) -> Result<()> {
     })?;
 
     print!("{template}");
+    Ok(())
+}
+
+fn cmd_completions(shell: Shell) -> Result<()> {
+    let mut cmd = Cli::command();
+    generate(shell, &mut cmd, "usb-gadget", &mut io::stdout().lock());
     Ok(())
 }
