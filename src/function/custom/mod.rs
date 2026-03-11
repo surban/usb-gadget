@@ -2,6 +2,7 @@
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_FS` must be enabled.
 
+use byteorder::{WriteBytesExt, LE};
 use bytes::{Bytes, BytesMut};
 use proc_mounts::MountIter;
 use rustix::{
@@ -39,6 +40,79 @@ pub(crate) fn driver() -> &'static OsStr {
 }
 
 pub use ffs::CustomDesc;
+
+/// USB DFU (Device Firmware Upgrade) functional descriptor.
+///
+/// This descriptor is placed after a DFU interface descriptor and advertises the
+/// device's DFU capabilities to the host. It is defined by the
+/// [USB DFU 1.1 specification](https://www.usb.org/sites/default/files/DFU_1.1.pdf).
+///
+/// Use [`Interface::with_custom_desc`] to attach it to an interface:
+///
+/// ```no_run
+/// use usb_gadget::{
+///     function::custom::{DfuDesc, Interface},
+///     Class,
+/// };
+///
+/// let dfu = DfuDesc {
+///     can_download: true,
+///     can_upload: true,
+///     manifest_tolerant: false,
+///     will_detach: true,
+///     detach_timeout_ms: 1000,
+///     transfer_size: 4096,
+///     dfu_version: (1, 1),
+/// };
+///
+/// let dfu_class = Class::new(0xFE, 0x01, 0x01); // Application / DFU / Runtime
+/// let interface = Interface::new(dfu_class, "DFU").with_custom_desc(dfu.into());
+/// ```
+///
+/// Requires kernel 6.12 or later.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DfuDesc {
+    /// Device is capable of receiving firmware via DFU.
+    pub can_download: bool,
+    /// Device is capable of uploading firmware via DFU.
+    pub can_upload: bool,
+    /// Device is able to communicate after the manifestation phase
+    /// (firmware programming) without a bus reset.
+    pub manifest_tolerant: bool,
+    /// Device will perform a bus detach-attach sequence when it receives
+    /// a `DFU_DETACH` request. The host must not issue a USB Reset.
+    pub will_detach: bool,
+    /// Time, in milliseconds, that the device will wait after receipt of the
+    /// `DFU_DETACH` request. If this time elapses without a USB reset, then
+    /// the device will terminate the reconfiguration phase and revert to normal
+    /// operation.
+    pub detach_timeout_ms: u16,
+    /// Maximum number of bytes that the device can accept per
+    /// control-write transaction.
+    pub transfer_size: u16,
+    /// DFU specification version as `(major, minor)` in BCD.
+    ///
+    /// For example, DFU 1.1 is `(1, 1)`.
+    pub dfu_version: (u8, u8),
+}
+
+impl From<DfuDesc> for CustomDesc {
+    fn from(dfu: DfuDesc) -> Self {
+        let mut data = Vec::with_capacity(7);
+        let attrs = (dfu.can_download as u8)
+            | ((dfu.can_upload as u8) << 1)
+            | ((dfu.manifest_tolerant as u8) << 2)
+            | ((dfu.will_detach as u8) << 3);
+        data.push(attrs);
+        data.write_u16::<LE>(dfu.detach_timeout_ms).unwrap();
+        data.write_u16::<LE>(dfu.transfer_size).unwrap();
+        // USB BCD version: major in high byte, minor in upper nibble of low byte.
+        // For example, DFU 1.1 is 0x0110.
+        let bcd = (dfu.dfu_version.0 as u16) << 8 | (dfu.dfu_version.1 as u16) << 4;
+        data.write_u16::<LE>(bcd).unwrap();
+        CustomDesc::new(0x21, data)
+    }
+}
 
 /// An USB interface.
 #[derive(Debug)]
