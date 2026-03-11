@@ -1,0 +1,33 @@
+# USB serial (ACM) gadget.
+#
+# Usage:
+#   usb-gadget up serial.toml
+
+name = "serial-debug"
+# udc = "dummy_udc.0"       # UDC name (auto-detect if omitted)
+
+[device]
+vendor = 0x1209
+product = 0x0002
+manufacturer = "Example Inc."
+product_name = "Debug Console"
+serial = "0001"
+# language = "en-us"         # string language
+# class = 0                  # device class (0 = interface-specific)
+# sub_class = 0
+# protocol = 0
+# usb_version = "2.0"        # "2.0" or "2.1" or "3.0"
+# max_speed = "high"         # "full", "high", "super", "super_plus"
+# max_packet_size0 = 64
+# device_release = 0x0100
+
+[[config]]
+description = "Serial Config"
+# max_power = 250             # max power draw in mA
+# self_powered = false
+# remote_wakeup = false
+
+[[config.function]]
+type = "serial"
+class = "acm"                 # "acm" or "generic"
+# console = false             # use as kernel console

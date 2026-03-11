@@ -1,9 +1,10 @@
-# USB mass storage gadget example.
+# USB mass storage gadget.
 #
 # Usage:
-#   usb-gadget up examples/config/mass-storage.toml
+#   usb-gadget up mass-storage.toml
 
 name = "mass-storage"
+# udc = "dummy_udc.0"
 
 [device]
 vendor = 0x1209
@@ -22,3 +23,7 @@ stall = true
 [[config.function.lun]]
 file = "/tmp/disk.img"
 removable = true
+# read_only = false
+# cdrom = false
+# no_fua = false
+# inquiry_string = "Example"

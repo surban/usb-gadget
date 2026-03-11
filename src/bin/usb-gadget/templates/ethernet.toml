@@ -1,9 +1,10 @@
-# USB Ethernet (ECM) gadget example.
+# USB Ethernet (ECM) gadget.
 #
 # Usage:
-#   usb-gadget up examples/config/ethernet.toml
+#   usb-gadget up ethernet.toml
 
 name = "ethernet"
+# udc = "dummy_udc.0"
 
 [device]
 vendor = 0x1209
@@ -17,6 +18,7 @@ description = "ECM Network"
 
 [[config.function]]
 type = "net"
-class = "ecm"
+class = "ecm"                 # "ecm", "ecm_subset", "eem", "ncm", or "rndis"
 dev_addr = "aa:bb:cc:dd:ee:f0"
 host_addr = "aa:bb:cc:dd:ee:f1"
+# qmult = 5                   # queue length multiplier

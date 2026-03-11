@@ -1,0 +1,26 @@
+# USB MIDI gadget.
+#
+# Usage:
+#   usb-gadget up midi.toml
+
+name = "midi"
+# udc = "dummy_udc.0"
+
+[device]
+vendor = 0x1209
+product = 0x0008
+manufacturer = "Example Inc."
+product_name = "USB MIDI"
+serial = "0001"
+
+[[config]]
+description = "MIDI Config"
+
+[[config.function]]
+type = "midi"
+# id = "usb-midi"            # ALSA card name
+# in_ports = 1               # number of MIDI IN ports
+# out_ports = 1              # number of MIDI OUT ports
+# buflen = 256
+# qlen = 32
+# index = 0

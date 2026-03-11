@@ -1,0 +1,23 @@
+# USB loopback gadget (for testing).
+# Echoes data from OUT endpoint back to IN endpoint.
+#
+# Usage:
+#   usb-gadget up loopback.toml
+
+name = "loopback"
+# udc = "dummy_udc.0"
+
+[device]
+vendor = 0x1209
+product = 0x000a
+manufacturer = "Example Inc."
+product_name = "USB Loopback"
+serial = "0001"
+
+[[config]]
+description = "Loopback Config"
+
+[[config.function]]
+type = "loopback"
+# qlen = 32
+# bulk_buflen = 4096

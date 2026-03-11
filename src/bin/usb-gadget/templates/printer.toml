@@ -1,10 +1,10 @@
-# USB printer gadget example.
+# USB printer gadget.
 #
 # Usage:
-#   usb-gadget up examples/config/printer.toml
-#   usb-gadget down printer
+#   usb-gadget up printer.toml
 
 name = "printer"
+# udc = "dummy_udc.0"
 
 [device]
 vendor = 0x1209

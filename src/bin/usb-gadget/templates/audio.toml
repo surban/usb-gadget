@@ -1,0 +1,39 @@
+# USB Audio Class 2 (UAC2) gadget.
+#
+# Usage:
+#   usb-gadget up audio.toml
+
+name = "audio"
+# udc = "dummy_udc.0"
+
+[device]
+vendor = 0x1209
+product = 0x0005
+manufacturer = "Example Inc."
+product_name = "USB Audio"
+serial = "0001"
+
+[[config]]
+description = "UAC2 Audio"
+
+[[config.function]]
+type = "uac2"
+function_name = "USB Audio"
+# request_number = 2
+# fb_max = 0
+
+[config.function.capture]
+# capture.sync_type = 0
+# capture.hs_interval = 0
+[config.function.capture.channel]
+channel_mask = 3
+sample_rate = 48000
+sample_size = 2
+
+[config.function.playback]
+# playback.sync_type = 0
+# playback.hs_interval = 0
+[config.function.playback.channel]
+channel_mask = 3
+sample_rate = 48000
+sample_size = 2

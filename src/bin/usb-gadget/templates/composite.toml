@@ -1,10 +1,11 @@
-# Multi-function composite gadget example.
+# Multi-function composite gadget.
 # Combines serial console + network + mass storage in one gadget.
 #
 # Usage:
-#   usb-gadget up examples/config/composite.toml
+#   usb-gadget up composite.toml
 
 name = "composite"
+# udc = "dummy_udc.0"
 
 [device]
 vendor = 0x1209

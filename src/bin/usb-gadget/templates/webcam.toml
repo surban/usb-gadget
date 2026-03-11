@@ -1,9 +1,10 @@
-# USB Video Class (UVC) webcam gadget example.
+# USB Video Class (UVC) webcam gadget.
 #
 # Usage:
-#   usb-gadget up examples/config/webcam.toml
+#   usb-gadget up webcam.toml
 
 name = "webcam"
+# udc = "dummy_udc.0"
 
 [device]
 vendor = 0x1209
@@ -19,12 +20,18 @@ description = "UVC Config"
 [[config.function]]
 type = "video"
 streaming_max_packet = 3072
+# streaming_interval = 1
+# streaming_max_burst = 0
+# function_name = "Webcam"
+# processing_controls = 0
+# camera_controls = 0
 
 [[config.function.frame]]
 width = 640
 height = 480
-format = "yuyv"
+format = "yuyv"               # "yuyv", "mjpeg", "nv12", "h264", or GUID hex
 fps = [30, 15]
+# intervals = [333333]        # raw intervals in 100ns units (alternative to fps)
 
 [[config.function.frame]]
 width = 1280

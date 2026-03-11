@@ -1,0 +1,26 @@
+# USB HID (Human Interface Device) gadget.
+#
+# Usage:
+#   usb-gadget up hid.toml
+
+name = "hid"
+# udc = "dummy_udc.0"
+
+[device]
+vendor = 0x1209
+product = 0x0007
+manufacturer = "Example Inc."
+product_name = "USB HID Device"
+serial = "0001"
+
+[[config]]
+description = "HID Config"
+
+[[config.function]]
+type = "hid"
+sub_class = 0
+protocol = 0
+report_len = 8
+# Report descriptor as hex string (example: generic 8-byte input report).
+report_desc = "06000905a10109300930150026ff0075089502810206000905a101093009301500263f0175089502910200c000c0"
+# no_out_endpoint = false

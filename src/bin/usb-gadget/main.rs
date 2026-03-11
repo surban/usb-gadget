@@ -46,6 +46,14 @@ enum Command {
         /// Path to a TOML config file or directory.
         path: PathBuf,
     },
+    /// Print a configuration template to stdout.
+    Template {
+        /// Template name, or --list to show available templates.
+        name: Option<String>,
+        /// List available templates.
+        #[arg(long)]
+        list: bool,
+    },
 }
 
 fn main() {
@@ -64,6 +72,7 @@ fn run(cli: Cli) -> Result<()> {
         Command::Down { names, all } => cmd_down(&names, all),
         Command::List => cmd_list(),
         Command::Check { path } => cmd_check(&path),
+        Command::Template { name, list } => cmd_template(name.as_deref(), list),
     }
 }
 
@@ -207,4 +216,42 @@ fn find_udc(name: &str) -> Result<Udc> {
         .into_iter()
         .find(|u| u.name() == name)
         .ok_or_else(|| Error::new(ErrorKind::NotFound, format!("UDC '{name}' not found")))
+}
+
+const TEMPLATES: &[(&str, &str)] = &[
+    ("serial", include_str!("templates/serial.toml")),
+    ("printer", include_str!("templates/printer.toml")),
+    ("ethernet", include_str!("templates/ethernet.toml")),
+    ("mass-storage", include_str!("templates/mass-storage.toml")),
+    ("audio", include_str!("templates/audio.toml")),
+    ("uac1", include_str!("templates/uac1.toml")),
+    ("webcam", include_str!("templates/webcam.toml")),
+    ("hid", include_str!("templates/hid.toml")),
+    ("midi", include_str!("templates/midi.toml")),
+    ("loopback", include_str!("templates/loopback.toml")),
+    ("composite", include_str!("templates/composite.toml")),
+];
+
+fn cmd_template(name: Option<&str>, list: bool) -> Result<()> {
+    if list || name.is_none() {
+        println!("Available templates:");
+        for (tname, _) in TEMPLATES {
+            println!("  {tname}");
+        }
+        if !list {
+            println!("\nUsage: usb-gadget template <name>");
+        }
+        return Ok(());
+    }
+
+    let name = name.unwrap();
+    let template = TEMPLATES.iter().find(|(n, _)| *n == name).map(|(_, content)| *content).ok_or_else(|| {
+        Error::new(
+            ErrorKind::InvalidInput,
+            format!("unknown template '{name}' (use --list to see available templates)"),
+        )
+    })?;
+
+    print!("{template}");
+    Ok(())
 }
