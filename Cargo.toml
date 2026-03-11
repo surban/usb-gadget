@@ -27,6 +27,8 @@ tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
 uuid = "1"
 
 [dev-dependencies]
+dma-buf = "0.5"
+dma-heap = "0.4"
 env_logger = "0.11"
 nusb = "0.2"
 tempfile = "3"

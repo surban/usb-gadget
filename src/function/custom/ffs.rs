@@ -641,3 +641,33 @@ pub fn endpoint_desc(fd: BorrowedFd<'_>, buf: &mut [u8; EndpointDesc::AUDIO_SIZE
     }?;
     Ok(())
 }
+
+// --- FunctionFS DMA-BUF ioctls (kernel >= 6.9) ---
+
+/// `FUNCTIONFS_DMABUF_ATTACH`: `_IOW('g', 131, int)`
+pub fn dmabuf_attach(ep_fd: BorrowedFd<'_>, dmabuf_fd: RawFd) -> std::io::Result<()> {
+    unsafe { ioctl::ioctl(ep_fd, ioctl::Setter::<{ opcode::write::<c_int>(b'g', 131) }, _>::new(dmabuf_fd)) }?;
+    Ok(())
+}
+
+/// `FUNCTIONFS_DMABUF_DETACH`: `_IOW('g', 132, int)`
+pub fn dmabuf_detach(ep_fd: BorrowedFd<'_>, dmabuf_fd: RawFd) -> std::io::Result<()> {
+    unsafe { ioctl::ioctl(ep_fd, ioctl::Setter::<{ opcode::write::<c_int>(b'g', 132) }, _>::new(dmabuf_fd)) }?;
+    Ok(())
+}
+
+/// Matches the kernel's `struct usb_ffs_dmabuf_transfer_req`.
+#[repr(C, packed)]
+pub struct DmaBufTransferReq {
+    pub fd: c_int,
+    pub flags: u32,
+    pub length: u64,
+}
+
+/// `FUNCTIONFS_DMABUF_TRANSFER`: `_IOW('g', 133, struct usb_ffs_dmabuf_transfer_req)`
+pub fn dmabuf_transfer(ep_fd: BorrowedFd<'_>, req: &DmaBufTransferReq) -> std::io::Result<()> {
+    unsafe {
+        ioctl::ioctl(ep_fd, ioctl::Setter::<{ opcode::write::<DmaBufTransferReq>(b'g', 133) }, _>::new(req))
+    }?;
+    Ok(())
+}

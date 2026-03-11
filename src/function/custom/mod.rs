@@ -16,7 +16,7 @@ use std::{
     fs::File,
     hash::Hash,
     io::{Error, ErrorKind, Read, Result, Write},
-    os::fd::{AsFd, AsRawFd, RawFd},
+    os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -1463,6 +1463,43 @@ impl<'a> EndpointControl<'a> {
     pub fn fd(&mut self) -> Result<RawFd> {
         let file = self.io.file()?;
         Ok(file.as_raw_fd())
+    }
+
+    /// Attaches a DMA-BUF to this endpoint for zero-copy transfers.
+    ///
+    /// The DMA-BUF, identified by its file descriptor, is mapped for DMA by the
+    /// UDC driver and can then be used repeatedly with
+    /// [`dmabuf_transfer`](Self::dmabuf_transfer). A single DMA-BUF can be
+    /// attached to multiple endpoints.
+    ///
+    /// Requires kernel 6.9 or later and a UDC driver with scatter-gather
+    /// support (e.g. dwc3).
+    pub fn dmabuf_attach(&self, dmabuf: BorrowedFd<'_>) -> Result<()> {
+        let file = self.io.file()?;
+        ffs::dmabuf_attach(file.as_fd(), dmabuf.as_raw_fd())
+    }
+
+    /// Detaches a previously attached DMA-BUF from this endpoint.
+    pub fn dmabuf_detach(&self, dmabuf: BorrowedFd<'_>) -> Result<()> {
+        let file = self.io.file()?;
+        ffs::dmabuf_detach(file.as_fd(), dmabuf.as_raw_fd())
+    }
+
+    /// Queues a DMA-BUF transfer on this endpoint.
+    ///
+    /// On an IN (device-to-host) endpoint, `length` bytes from the DMA-BUF are
+    /// sent to the host. On an OUT (host-to-device) endpoint, up to `length`
+    /// bytes from the host are written into the DMA-BUF.
+    ///
+    /// The transfer runs asynchronously. Use the DMA-BUF fence mechanism
+    /// (`DMA_BUF_IOCTL_EXPORT_SYNC_FILE` + `poll`) to wait for completion.
+    ///
+    /// The DMA-BUF must have been previously attached with
+    /// [`dmabuf_attach`](Self::dmabuf_attach).
+    pub fn dmabuf_transfer(&self, dmabuf: BorrowedFd<'_>, length: u64) -> Result<()> {
+        let file = self.io.file()?;
+        let req = ffs::DmaBufTransferReq { fd: dmabuf.as_raw_fd(), flags: 0, length };
+        ffs::dmabuf_transfer(file.as_fd(), &req)
     }
 }
 
