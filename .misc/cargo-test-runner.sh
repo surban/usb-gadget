@@ -4,18 +4,18 @@
 # with dummy_hcd USB gadget support.
 #
 # Cargo invokes this as:
-#   .ci/cargo-test-runner.sh <test-binary> [args...]
+#   .misc/cargo-test-runner.sh <test-binary> [args...]
 #
 # Setup (one of):
 #   1. Set via environment:
-#        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".ci/cargo-test-runner.sh"
+#        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".misc/cargo-test-runner.sh"
 #
 #   2. Set in .cargo/config.toml:
 #        [target.x86_64-unknown-linux-gnu]
-#        runner = ".ci/cargo-test-runner.sh"
+#        runner = ".misc/cargo-test-runner.sh"
 #
-# The kernel tarball (built by .ci/build-kernel.sh) is located automatically
-# from .ci/kernel-*.tar.zst, or set KERNEL_TARBALL=/path/to/tarball.
+# The kernel tarball (built by .misc/build-kernel.sh) is located automatically
+# from .misc/kernel-*.tar.zst, or set KERNEL_TARBALL=/path/to/tarball.
 #
 # On first invocation the tarball is extracted to a staging directory that
 # is reused for subsequent invocations (within the same tmpdir lifetime).
@@ -38,7 +38,7 @@ fi
 
 if [ -z "$KERNEL_TARBALL" ] || [ ! -f "$KERNEL_TARBALL" ]; then
     echo "ERROR: no kernel tarball found." >&2
-    echo "Build one with: .ci/build-kernel.sh" >&2
+    echo "Build one with: .misc/build-kernel.sh" >&2
     echo "Or set KERNEL_TARBALL=/path/to/kernel-*.tar.zst" >&2
     exit 1
 fi

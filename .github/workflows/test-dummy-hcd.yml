@@ -34,8 +34,8 @@ jobs:
         id: cache-kernel
         uses: actions/cache@v4
         with:
-          path: .ci/kernel-${{ env.KERNEL_VERSION }}.tar.zst
-          key: ci-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('.ci/usb-gadget.config', '.ci/build-kernel.sh') }}
+          path: .misc/kernel-${{ env.KERNEL_VERSION }}.tar.zst
+          key: ci-kernel-${{ env.KERNEL_VERSION }}-${{ hashFiles('.misc/usb-gadget.config', '.misc/build-kernel.sh') }}
 
       - name: Install kernel build deps
         if: steps.cache-kernel.outputs.cache-hit != 'true'
@@ -45,7 +45,7 @@ jobs:
 
       - name: Build kernel
         if: steps.cache-kernel.outputs.cache-hit != 'true'
-        run: .ci/build-kernel.sh --kernel-version "$KERNEL_VERSION"
+        run: .misc/build-kernel.sh --kernel-version "$KERNEL_VERSION"
 
       - name: Build (release, all features)
         run: cargo build --release --all-features --all-targets
@@ -53,7 +53,7 @@ jobs:
       - name: Run tests in VM
         run: |
           set -euo pipefail
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".ci/cargo-test-runner.sh"
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=".misc/cargo-test-runner.sh"
           export USB_GADGET_NO_THROUGHPUT_CHECK=1
           # The audio and video tests are skipped because dummy_hcd does not
           # support isochronous endpoints.

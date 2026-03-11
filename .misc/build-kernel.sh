@@ -19,7 +19,7 @@
 #   - zstd
 #
 # Usage:
-#   .ci/build-kernel.sh [--output <path>] [--kernel-version <version>]
+#   .misc/build-kernel.sh [--output <path>] [--kernel-version <version>]
 #
 set -euo pipefail
 
@@ -45,7 +45,7 @@ while [ $# -gt 0 ]; do
             echo "Usage: $0 [--output <path>] [--kernel-version <version>] [--work-dir <dir>]"
             echo ""
             echo "Options:"
-            echo "  --output, -o          Output tarball path (default: .ci/kernel-<version>.tar.zst)"
+            echo "  --output, -o          Output tarball path (default: .misc/kernel-<version>.tar.zst)"
             echo "  --kernel-version, -k  Linux kernel version to build (default: $KERNEL_VERSION)"
             echo "  --work-dir, -w        Working directory for kernel source (kept after build)"
             echo "  --help, -h            Show this help"
@@ -123,7 +123,7 @@ done
 if [ "$MISSING" = true ]; then
     echo ""
     echo "ERROR: some required config options are not set." >&2
-    echo "Check .ci/usb-gadget.config and kernel dependency changes." >&2
+    echo "Check .misc/usb-gadget.config and kernel dependency changes." >&2
     exit 1
 fi
 echo "  All required options present."
@@ -164,7 +164,7 @@ cat > "$STAGING/boot/kernel-info.txt" <<EOF
 version=$KVER_FULL
 base_version=$KERNEL_VERSION
 build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-config_snippet=.ci/usb-gadget.config
+config_snippet=.misc/usb-gadget.config
 EOF
 
 echo ""
