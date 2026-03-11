@@ -1,24 +1,61 @@
-//! USB Audio Class 2 (UAC2) function.
+//! USB Audio Class 1 (UAC1) and 2 (UAC2) functions.
 //!
-//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UAC2` must be enabled.
+//! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_UAC1` must be enabled for UAC1
+//! and `CONFIG_USB_CONFIGFS_F_UAC2` must be enabled for UAC2.
 //!
-//! # Example
+//! # UAC1 Example
 //!
 //! ```no_run
-//! use usb_gadget::function::audio::{Uac2, Channel};
-//! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
+//! use usb_gadget::{
+//!     default_udc,
+//!     function::audio::{Channel, Uac1},
+//!     Class, Config, Gadget, Id, Strings,
+//! };
 //!
-//! // capture: 8 ch, 48000 Hz, 24 bit, playback: 2 ch, 48000 Hz, 16 bit
-//! let (audio, func) = Uac2::new(Channel::new(0b1111_1111, 48000, 24 / 8), Channel::new(0b11, 48000, 16 / 8));
+//! // capture: stereo, 48000 Hz, 16 bit, playback: stereo, 48000 Hz, 16 bit
+//! let (audio, func) = Uac1::new(Channel::new(0b11, 48000, 2), Channel::new(0b11, 48000, 2));
 //!
 //! let udc = default_udc().expect("cannot get UDC");
-//! let reg =
-//!     // USB device descriptor base class 0, 0, 0: use Interface Descriptors
-//!     // Linux Foundation VID Gadget PID
-//!     Gadget::new(Class::new(0, 0, 0), Id::new(0x1d6b, 0x0104), Strings::new("Clippy Manufacturer", "Rust UAC2", "RUST0123456"))
-//!         .with_config(Config::new("Audio Config 1").with_function(func))
-//!         .bind(&udc)
-//!         .expect("cannot bind to UDC");
+//! let reg = Gadget::new(
+//!     Class::new(0, 0, 0),
+//!     Id::new(0x1d6b, 0x0104),
+//!     Strings::new("Clippy Manufacturer", "Rust UAC1", "RUST0123456"),
+//! )
+//! .with_config(Config::new("Audio Config 1").with_function(func))
+//! .bind(&udc)
+//! .expect("cannot bind to UDC");
+//!
+//! println!(
+//!     "UAC1 audio {} at {} to {} status {:?}",
+//!     reg.name().to_string_lossy(),
+//!     reg.path().display(),
+//!     udc.name().to_string_lossy(),
+//!     audio.status()
+//! );
+//! ```
+//!
+//! # UAC2 Example
+//!
+//! ```no_run
+//! use usb_gadget::{
+//!     default_udc,
+//!     function::audio::{Channel, Uac2},
+//!     Class, Config, Gadget, Id, Strings,
+//! };
+//!
+//! // capture: 8 ch, 48000 Hz, 24 bit, playback: 2 ch, 48000 Hz, 16 bit
+//! let (audio, func) =
+//!     Uac2::new(Channel::new(0b1111_1111, 48000, 24 / 8), Channel::new(0b11, 48000, 16 / 8));
+//!
+//! let udc = default_udc().expect("cannot get UDC");
+//! let reg = Gadget::new(
+//!     Class::new(0, 0, 0),
+//!     Id::new(0x1d6b, 0x0104),
+//!     Strings::new("Clippy Manufacturer", "Rust UAC2", "RUST0123456"),
+//! )
+//! .with_config(Config::new("Audio Config 1").with_function(func))
+//! .bind(&udc)
+//! .expect("cannot bind to UDC");
 //!
 //! println!(
 //!     "UAC2 audio {} at {} to {} status {:?}",
@@ -291,6 +328,210 @@ impl Uac2 {
     /// channels.
     pub fn new(capture: Channel, playback: Channel) -> (Uac2, Handle) {
         let mut builder = Uac2Builder::default();
+        builder.capture.channel = capture;
+        builder.playback.channel = playback;
+        builder.build()
+    }
+
+    /// Access to registration status.
+    pub fn status(&self) -> Status {
+        self.dir.status()
+    }
+}
+
+/// Audio device configuration for UAC1.
+///
+/// Fields are optional and will be set to f_uac1 default values if not specified, see
+/// `drivers/usb/gadget/function/u_uac1.h`. Not all fields are supported by all kernels; permission
+/// denied errors may occur if unsupported fields are set.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Uac1Config {
+    /// Audio channel configuration.
+    pub channel: Channel,
+    /// If channel has mute
+    pub mute_present: Option<bool>,
+    /// If channel has volume
+    pub volume_present: Option<bool>,
+    /// Minimum volume (in 1/256 dB)
+    pub volume_min: Option<i16>,
+    /// Maximum volume (in 1/256 dB)
+    pub volume_max: Option<i16>,
+    /// Resolution of volume control (in 1/256 dB)
+    pub volume_resolution: Option<i16>,
+    /// Name of the volume control function
+    pub volume_name: Option<String>,
+    /// Name of the input terminal
+    pub input_terminal_name: Option<String>,
+    /// Name of the input terminal channel
+    pub input_terminal_channel_name: Option<String>,
+    /// Name of the output terminal
+    pub output_terminal_name: Option<String>,
+}
+
+/// Builder for USB audio class 1 (UAC1) function.
+///
+/// Set capture or playback channel_mask to 0 to disable the audio endpoint.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Uac1Builder {
+    /// Audio capture configuration.
+    pub capture: Uac1Config,
+    /// Audio playback configuration.
+    pub playback: Uac1Config,
+    /// The number of pre-allocated requests for both capture and playback
+    pub request_number: Option<u32>,
+    /// The name of the interface
+    pub function_name: Option<String>,
+}
+
+impl Uac1Builder {
+    /// Build the USB function.
+    ///
+    /// The returned handle must be added to a USB gadget configuration.
+    pub fn build(self) -> (Uac1, Handle) {
+        let dir = FunctionDir::new();
+        (Uac1 { dir: dir.clone() }, Handle::new(Uac1Function { builder: self, dir }))
+    }
+
+    /// Set audio capture configuration.
+    #[must_use]
+    pub fn with_capture_config(mut self, capture: Uac1Config) -> Self {
+        self.capture = capture;
+        self
+    }
+
+    /// Set audio playback configuration.
+    #[must_use]
+    pub fn with_playback_config(mut self, playback: Uac1Config) -> Self {
+        self.playback = playback;
+        self
+    }
+}
+
+#[derive(Debug)]
+struct Uac1Function {
+    builder: Uac1Builder,
+    dir: FunctionDir,
+}
+
+impl Function for Uac1Function {
+    fn driver(&self) -> OsString {
+        "uac1".into()
+    }
+
+    fn dir(&self) -> FunctionDir {
+        self.dir.clone()
+    }
+
+    fn register(&self) -> Result<()> {
+        // capture
+        if let Some(channel_mask) = self.builder.capture.channel.channel_mask {
+            self.dir.write("c_chmask", channel_mask.to_string())?;
+        }
+        if let Some(sample_rate) = self.builder.capture.channel.sample_rate {
+            self.dir.write("c_srate", sample_rate.to_string())?;
+        }
+        if let Some(sample_size) = self.builder.capture.channel.sample_size {
+            self.dir.write("c_ssize", sample_size.to_string())?;
+        }
+        if let Some(mute_present) = self.builder.capture.mute_present {
+            self.dir.write("c_mute_present", (mute_present as u8).to_string())?;
+        }
+        if let Some(volume_present) = self.builder.capture.volume_present {
+            self.dir.write("c_volume_present", (volume_present as u8).to_string())?;
+        }
+        if let Some(volume_min) = self.builder.capture.volume_min {
+            self.dir.write("c_volume_min", volume_min.to_string())?;
+        }
+        if let Some(volume_max) = self.builder.capture.volume_max {
+            self.dir.write("c_volume_max", volume_max.to_string())?;
+        }
+        if let Some(volume_resolution) = self.builder.capture.volume_resolution {
+            self.dir.write("c_volume_res", volume_resolution.to_string())?;
+        }
+        if let Some(volume_name) = &self.builder.capture.volume_name {
+            self.dir.write("c_fu_vol_name", volume_name)?;
+        }
+        if let Some(input_terminal_name) = &self.builder.capture.input_terminal_name {
+            self.dir.write("c_it_name", input_terminal_name)?;
+        }
+        if let Some(input_terminal_channel_name) = &self.builder.capture.input_terminal_channel_name {
+            self.dir.write("c_it_ch_name", input_terminal_channel_name)?;
+        }
+        if let Some(output_terminal_name) = &self.builder.capture.output_terminal_name {
+            self.dir.write("c_ot_name", output_terminal_name)?;
+        }
+
+        // playback
+        if let Some(channel_mask) = self.builder.playback.channel.channel_mask {
+            self.dir.write("p_chmask", channel_mask.to_string())?;
+        }
+        if let Some(sample_rate) = self.builder.playback.channel.sample_rate {
+            self.dir.write("p_srate", sample_rate.to_string())?;
+        }
+        if let Some(sample_size) = self.builder.playback.channel.sample_size {
+            self.dir.write("p_ssize", sample_size.to_string())?;
+        }
+        if let Some(mute_present) = self.builder.playback.mute_present {
+            self.dir.write("p_mute_present", (mute_present as u8).to_string())?;
+        }
+        if let Some(volume_present) = self.builder.playback.volume_present {
+            self.dir.write("p_volume_present", (volume_present as u8).to_string())?;
+        }
+        if let Some(volume_min) = self.builder.playback.volume_min {
+            self.dir.write("p_volume_min", volume_min.to_string())?;
+        }
+        if let Some(volume_max) = self.builder.playback.volume_max {
+            self.dir.write("p_volume_max", volume_max.to_string())?;
+        }
+        if let Some(volume_resolution) = self.builder.playback.volume_resolution {
+            self.dir.write("p_volume_res", volume_resolution.to_string())?;
+        }
+        if let Some(volume_name) = &self.builder.playback.volume_name {
+            self.dir.write("p_fu_vol_name", volume_name)?;
+        }
+        if let Some(input_terminal_name) = &self.builder.playback.input_terminal_name {
+            self.dir.write("p_it_name", input_terminal_name)?;
+        }
+        if let Some(input_terminal_channel_name) = &self.builder.playback.input_terminal_channel_name {
+            self.dir.write("p_it_ch_name", input_terminal_channel_name)?;
+        }
+        if let Some(output_terminal_name) = &self.builder.playback.output_terminal_name {
+            self.dir.write("p_ot_name", output_terminal_name)?;
+        }
+
+        // general
+        if let Some(request_number) = self.builder.request_number {
+            self.dir.write("req_number", request_number.to_string())?;
+        }
+        if let Some(function_name) = &self.builder.function_name {
+            self.dir.write("function_name", function_name)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// USB Audio Class 1 (UAC1) function.
+///
+/// UAC1 is widely supported by hosts including car stereos, older Macs, game consoles, and
+/// embedded systems that may not support UAC2.
+#[derive(Debug)]
+pub struct Uac1 {
+    dir: FunctionDir,
+}
+
+impl Uac1 {
+    /// Creates a new USB Audio Class 1 (UAC1) builder with f_uac1 audio defaults.
+    pub fn builder() -> Uac1Builder {
+        Uac1Builder::default()
+    }
+
+    /// Creates a new USB Audio Class 1 (UAC1) function with the specified capture and playback
+    /// channels.
+    pub fn new(capture: Channel, playback: Channel) -> (Uac1, Handle) {
+        let mut builder = Uac1Builder::default();
         builder.capture.channel = capture;
         builder.playback.channel = playback;
         builder.build()

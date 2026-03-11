@@ -90,7 +90,8 @@ modprobe dummy_hcd is_super_speed=Y
 for m in \
     usb_f_fs usb_f_acm usb_f_serial usb_f_ecm usb_f_eem usb_f_ncm \
     usb_f_rndis usb_f_ecm_subset usb_f_hid usb_f_mass_storage \
-    usb_f_printer usb_f_midi usb_f_uac2 usb_f_uvc; do
+    usb_f_printer usb_f_midi usb_f_uac1 usb_f_uac2 usb_f_uvc \
+    usb_f_ss_lb; do
     modprobe "$m" 2>/dev/null || true
 done
 

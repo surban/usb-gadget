@@ -112,8 +112,8 @@ MISSING=false
 for sym in USB_GADGET USB_DUMMY_HCD USB_CONFIGFS USB_LIBCOMPOSITE \
            USB_F_FS USB_F_ACM USB_F_SERIAL USB_F_ECM USB_F_EEM \
            USB_F_NCM USB_F_RNDIS USB_F_SUBSET USB_F_HID \
-           USB_F_MASS_STORAGE USB_F_PRINTER USB_F_MIDI USB_F_UAC2 \
-           USB_F_UVC CONFIGFS_FS; do
+           USB_F_MASS_STORAGE USB_F_PRINTER USB_F_MIDI USB_F_UAC1 \
+           USB_F_UAC2 USB_F_UVC USB_F_SS_LB CONFIGFS_FS; do
     if ! grep -q "CONFIG_${sym}=[ym]" .config; then
         echo "  MISSING: CONFIG_${sym}"
         MISSING=true
@@ -176,7 +176,7 @@ ALL_OK=true
 for m in dummy_hcd libcomposite usb_f_fs usb_f_acm usb_f_serial \
          usb_f_ecm usb_f_eem usb_f_ncm usb_f_rndis usb_f_ecm_subset \
          usb_f_hid usb_f_mass_storage usb_f_printer usb_f_midi \
-         usb_f_uac2 usb_f_uvc; do
+         usb_f_uac1 usb_f_uac2 usb_f_uvc usb_f_ss_lb; do
     modpath=$(find "$STAGING/lib/modules/$KVER_FULL" -name "${m}.ko*" 2>/dev/null | head -1)
     if [ -z "$modpath" ]; then
         echo "  MISSING: $m"

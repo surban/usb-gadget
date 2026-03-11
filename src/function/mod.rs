@@ -3,12 +3,14 @@
 pub mod audio;
 pub mod custom;
 pub mod hid;
+pub mod loopback;
 pub mod midi;
 pub mod msd;
 pub mod net;
 pub mod other;
 pub mod printer;
 pub mod serial;
+pub mod sourcesink;
 pub mod util;
 pub mod video;
 

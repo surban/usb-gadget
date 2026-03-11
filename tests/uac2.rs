@@ -12,7 +12,7 @@ const PLAYBACK_SAMPLE_RATE: u32 = 48000;
 const PLAYBACK_SAMPLE_SIZE: u32 = 16 / 8;
 
 #[test]
-fn audio() {
+fn uac2() {
     init();
 
     let (audio, func) = Uac2::new(
