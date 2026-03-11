@@ -281,6 +281,10 @@ impl From<UsbVersion> for u16 {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Gadget {
+    /// Custom name for the gadget in configfs.
+    ///
+    /// If `None`, an auto-generated name like `usb-gadget0` is used.
+    pub name: Option<String>,
     /// USB device class.
     pub device_class: Class,
     /// USB device id.
@@ -309,6 +313,7 @@ impl Gadget {
     /// Creates a new USB gadget definition.
     pub fn new(device_class: Class, id: Id, strings: Strings) -> Self {
         Self {
+            name: None,
             device_class,
             id,
             strings: [(Language::default(), strings)].into(),
@@ -359,17 +364,23 @@ impl Gadget {
 
         let usb_gadget_dir = usb_gadget_dir()?;
 
-        let mut gadget_idx: u16 = 0;
-        let dir = loop {
-            let dir = usb_gadget_dir.join(format!("usb-gadget{gadget_idx}"));
-            match fs::create_dir(&dir) {
-                Ok(()) => break dir,
-                Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
-                Err(err) => return Err(err),
+        let dir = if let Some(ref name) = self.name {
+            let dir = usb_gadget_dir.join(name);
+            fs::create_dir(&dir)?;
+            dir
+        } else {
+            let mut gadget_idx: u16 = 0;
+            loop {
+                let dir = usb_gadget_dir.join(format!("usb-gadget{gadget_idx}"));
+                match fs::create_dir(&dir) {
+                    Ok(()) => break dir,
+                    Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
+                    Err(err) => return Err(err),
+                }
+                gadget_idx = gadget_idx
+                    .checked_add(1)
+                    .ok_or_else(|| Error::new(ErrorKind::OutOfMemory, "USB gadgets exhausted"))?;
             }
-            gadget_idx = gadget_idx
-                .checked_add(1)
-                .ok_or_else(|| Error::new(ErrorKind::OutOfMemory, "USB gadgets exhausted"))?;
         };
 
         log::debug!("registering gadget at {}", dir.display());
@@ -410,12 +421,13 @@ impl Gadget {
             fs::write(lang_dir.join("serialnumber"), &strs.serial_number)?;
         }
 
+        let gadget_name = dir.file_name().unwrap().to_string_lossy();
         let functions: HashSet<_> = self.configs.iter().flat_map(|c| &c.functions).collect();
         let mut func_dirs = HashMap::new();
         for (func_idx, &func) in functions.iter().enumerate() {
             let func_dir = dir.join(
                 dir.join("functions")
-                    .join(format!("{}.usb-gadget{gadget_idx}-{func_idx}", func.get().driver().to_str().unwrap())),
+                    .join(format!("{}.{gadget_name}-{func_idx}", func.get().driver().to_str().unwrap())),
             );
             log::debug!("creating function at {}", func_dir.display());
             fs::create_dir(&func_dir)?;
