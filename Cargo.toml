@@ -7,7 +7,7 @@ license = "Apache-2.0"
 repository = "https://github.com/surban/usb-gadget"
 authors = ["Sebastian Urban <surban@surban.net>", "usb-gadget authors"]
 rust-version = "1.77"
-version = "0.7.6"
+version = "1.0.0"
 edition = "2021"
 
 [features]

@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## 1.0.0 - 2026-03-11
+### Added
+- USB gadget CLI tool
+- DMAbuf support for custom functions
+- UAC1 gadget support
+- loopback gadget support
+- sourcesink gadget support
+- UVC: additional video formats
+- custom function: DFU descriptor support
+- custom name support for gadgets
+- device path lookup for gadgets (HID)
+- `RegGadget::functions()` for querying registered functions
+- UDC driver name querying
+- `UsbVersion::V21` variant for USB 2.0 with BOS descriptor support
+### Changed
+- reversed `Speed` enum ordering for meaningful comparisons
+### Fixed
+- `DeviceInterfaceGUID` missing braces around GUID
+- custom function: panic in `recv_and_fetch_timeout`
+- RNDIS network function: write interface class values without `0x` prefix
+  as expected by kernel
+- stable and deduplicated function ordering in gadget configurations
+### Removed
+- deprecated `Config::set_max_power_ma()` method
+
+
 ## 0.7.6 - 2025-10-10
 ### Changed
 - preserve functions order in gadget configuration by Warren Campbell
