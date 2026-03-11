@@ -1,6 +1,71 @@
 //! Custom USB interface, implemented in user code.
 //!
 //! The Linux kernel configuration option `CONFIG_USB_CONFIGFS_F_FS` must be enabled.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use bytes::{Bytes, BytesMut};
+//! use std::{thread, time::Duration};
+//! use usb_gadget::{
+//!     default_udc,
+//!     function::custom::{Custom, Endpoint, EndpointDirection, Event, Interface},
+//!     Class, Config, Gadget, Id, Strings,
+//! };
+//!
+//! // Create endpoints.
+//! let (mut ep_rx, ep_rx_dir) = EndpointDirection::host_to_device();
+//! let (mut ep_tx, ep_tx_dir) = EndpointDirection::device_to_host();
+//!
+//! // Build the custom function with one interface.
+//! let (mut custom, handle) = Custom::builder()
+//!     .with_interface(
+//!         Interface::new(Class::vendor_specific(1, 2), "custom interface")
+//!             .with_endpoint(Endpoint::bulk(ep_rx_dir))
+//!             .with_endpoint(Endpoint::bulk(ep_tx_dir)),
+//!     )
+//!     .build();
+//!
+//! // Register and bind the gadget.
+//! let udc = default_udc().expect("cannot get UDC");
+//! let _reg = Gadget::new(
+//!     Class::new(255, 255, 3),
+//!     Id::new(0x1234, 0x5678),
+//!     Strings::new("manufacturer", "product", "serial"),
+//! )
+//! .with_config(Config::new("config").with_function(handle))
+//! .bind(&udc)
+//! .expect("cannot bind to UDC");
+//!
+//! // Handle control events.
+//! thread::spawn(move || loop {
+//!     let event = custom.event().expect("event failed");
+//!     match event {
+//!         Event::SetupHostToDevice(req) => {
+//!             let data = req.recv_all().unwrap();
+//!             println!("control data: {data:x?}");
+//!         }
+//!         Event::SetupDeviceToHost(req) => {
+//!             req.send(b"hello").unwrap();
+//!         }
+//!         _ => (),
+//!     }
+//! });
+//!
+//! // Receive data from host on OUT endpoint.
+//! thread::spawn(move || loop {
+//!     let size = ep_rx.max_packet_size().unwrap();
+//!     let data = ep_rx.recv(BytesMut::with_capacity(size)).expect("recv failed");
+//!     if let Some(data) = data {
+//!         println!("received {} bytes", data.len());
+//!     }
+//! });
+//!
+//! // Send data to host on IN endpoint.
+//! thread::spawn(move || loop {
+//!     ep_tx.send(Bytes::from_static(b"world")).expect("send failed");
+//! });
+//! ```
 
 use byteorder::{WriteBytesExt, LE};
 use bytes::{Bytes, BytesMut};
