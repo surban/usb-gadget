@@ -69,24 +69,73 @@ pub enum Format {
     Yuyv,
     /// MJPEG compressed format.
     Mjpeg,
+    /// Framebased format with a custom GUID.
+    ///
+    /// The GUID identifies the pixel format. Use [`Format::nv12`] or [`Format::h264`] for
+    /// common formats, or provide a custom 16-byte GUID.
+    Framebased {
+        /// 16-byte GUID identifying the pixel format.
+        guid: [u8; 16],
+        /// Short name used for the configfs directory (e.g. `"nv12"`).
+        name: &'static str,
+        /// Bits per pixel, used to compute `dwBytesPerLine` as `width * bpp / 8`.
+        ///
+        /// Set to `0` for compressed formats (e.g. H.264) where bytes-per-line
+        /// is not meaningful.
+        bpp: u8,
+    },
 }
 
 impl Format {
+    /// NV12 framebased format.
+    ///
+    /// NV12 is a common semi-planar YUV 4:2:0 format used by many camera ISPs
+    /// and hardware video encoders/decoders.
+    pub fn nv12() -> Self {
+        Format::Framebased {
+            guid: [
+                b'N', b'V', b'1', b'2', 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+            ],
+            name: "nv12",
+            bpp: 12,
+        }
+    }
+
+    /// H.264 framebased format.
+    pub fn h264() -> Self {
+        Format::Framebased {
+            guid: [
+                b'H', b'2', b'6', b'4', 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+            ],
+            name: "h264",
+            bpp: 0,
+        }
+    }
+
     fn all() -> &'static [Format] {
         &[Format::Yuyv, Format::Mjpeg]
     }
 
-    fn dir_name(&self) -> &'static OsStr {
+    fn dir_name(&self) -> OsString {
         match self {
-            Format::Yuyv => OsStr::new("yuyv"),
-            Format::Mjpeg => OsStr::new("mjpeg"),
+            Format::Yuyv => OsString::from("yuyv"),
+            Format::Mjpeg => OsString::from("mjpeg"),
+            Format::Framebased { name, .. } => OsString::from(name),
         }
     }
 
-    fn group_dir_name(&self) -> &'static OsStr {
+    fn group_dir_name(&self) -> OsString {
         match self {
-            Format::Yuyv => OsStr::new("uncompressed"),
-            _ => self.dir_name(),
+            Format::Yuyv => OsString::from("uncompressed"),
+            Format::Mjpeg => OsString::from("mjpeg"),
+            Format::Framebased { .. } => OsString::from("framebased"),
+        }
+    }
+
+    fn bytes_per_line(&self, width: u32) -> Option<u32> {
+        match self {
+            Format::Framebased { bpp, .. } => Some(width * (*bpp as u32) / 8),
+            _ => None,
         }
     }
 
@@ -274,12 +323,25 @@ impl Function for UvcFunction {
         // create frame descriptors
         for frame in &self.builder.frames {
             self.dir.create_dir_all(frame.path())?;
+
+            // For framebased formats, write the GUID identifying the pixel format.
+            if let Format::Framebased { guid, .. } = &frame.format {
+                self.dir.write(frame.format.group_path().join("guidFormat"), guid)?;
+            }
+
             self.dir.write(frame.path().join("wWidth"), frame.width.to_string())?;
             self.dir.write(frame.path().join("wHeight"), frame.height.to_string())?;
-            self.dir.write(
-                frame.path().join("dwMaxVideoFrameBufferSize"),
-                (frame.width * frame.height * 2).to_string(),
-            )?;
+
+            // Framebased formats use dwBytesPerLine; others use dwMaxVideoFrameBufferSize.
+            if let Some(bpl) = frame.format.bytes_per_line(frame.width) {
+                self.dir.write(frame.path().join("dwBytesPerLine"), bpl.to_string())?;
+            } else {
+                self.dir.write(
+                    frame.path().join("dwMaxVideoFrameBufferSize"),
+                    (frame.width * frame.height * 2).to_string(),
+                )?;
+            }
+
             self.dir.write(
                 frame.path().join("dwFrameInterval"),
                 frame.intervals.iter().map(|i| i.to_string()).collect::<Vec<String>>().join("\n"),
@@ -393,6 +455,42 @@ fn remove_class_headers<P: AsRef<Path>>(path: P) -> Result<()> {
     Ok(())
 }
 
+fn remove_format_dirs(dir: &Path, format: &Format) -> Result<()> {
+    // remove header link first to allow removing frames
+    let header_link_path = dir.join(format.header_link_path());
+    if header_link_path.is_symlink() {
+        log::trace!("removing UVC header link {:?}", header_link_path);
+        fs::remove_file(header_link_path)?;
+    }
+
+    let color_matching_dir = dir.join(format.color_matching_path());
+    if color_matching_dir.is_dir() {
+        log::trace!("removing UVC color matching information {:?}", color_matching_dir);
+        let cm_link = dir.join(format.color_matching_link_path());
+        if cm_link.is_symlink() {
+            fs::remove_file(cm_link)?;
+        }
+        fs::remove_dir(color_matching_dir)?;
+    }
+
+    let group_dir = dir.join(format.group_path());
+    if group_dir.is_dir() {
+        for entry in fs::read_dir(&group_dir)? {
+            let Ok(entry) = entry else { continue };
+            let path = entry.path();
+            if path.is_dir() && !path.is_symlink() {
+                log::trace!("removing UVC frame {:?}", path);
+                fs::remove_dir(path)?;
+            }
+        }
+
+        log::trace!("removing UVC group {:?}", group_dir);
+        fs::remove_dir(group_dir)?;
+    }
+
+    Ok(())
+}
+
 pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
     // remove header links for control and streaming
     let ctrl_class = dir.join("control/class");
@@ -406,34 +504,50 @@ pub(crate) fn remove_handler(dir: PathBuf) -> Result<()> {
 
     // remove all UVC frames, color matching information and header links
     if dir.join("streaming").is_dir() {
+        // Clean up known static formats.
         for format in Format::all() {
-            // remove header link first to allow removing frames
-            let header_link_path = dir.join(format.header_link_path());
-            if header_link_path.is_symlink() {
-                log::trace!("removing UVC header link {:?}", header_link_path);
-                fs::remove_file(header_link_path)?;
-            }
+            remove_format_dirs(&dir, format)?;
+        }
 
-            let color_matching_dir = dir.join(format.color_matching_path());
-            if color_matching_dir.is_dir() {
-                log::trace!("removing UVC color matching information {:?}", color_matching_dir);
-                fs::remove_file(dir.join(format.color_matching_link_path()))?;
-                fs::remove_dir(color_matching_dir)?;
-            }
+        // Clean up any framebased format directories that were created at runtime.
+        let framebased_dir = dir.join("streaming/framebased");
+        if framebased_dir.is_dir() {
+            for entry in fs::read_dir(&framebased_dir)? {
+                let Ok(entry) = entry else { continue };
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
 
-            let group_dir = dir.join(format.group_path());
-            if group_dir.is_dir() {
-                for entry in fs::read_dir(&group_dir)? {
-                    let Ok(entry) = entry else { continue };
-                    let path = entry.path();
-                    if path.is_dir() && !path.is_symlink() {
-                        log::trace!("removing UVC frame {:?}", path);
-                        fs::remove_dir(path)?;
-                    }
+                // Remove header link for this framebased format.
+                let header_link = dir.join(format!("streaming/header/h/{name_str}"));
+                if header_link.is_symlink() {
+                    log::trace!("removing UVC framebased header link {:?}", header_link);
+                    fs::remove_file(header_link)?;
                 }
 
-                log::trace!("removing UVC group {:?}", group_dir);
-                fs::remove_dir(group_dir)?;
+                // Remove color matching link and directory.
+                let cm_dir = dir.join(format!("streaming/color_matching/{name_str}"));
+                let cm_link = entry.path().join("color_matching");
+                if cm_link.is_symlink() {
+                    fs::remove_file(cm_link)?;
+                }
+                if cm_dir.is_dir() {
+                    fs::remove_dir(cm_dir)?;
+                }
+
+                // Remove frame subdirectories.
+                let group_path = entry.path();
+                if group_path.is_dir() && !group_path.is_symlink() {
+                    for frame_entry in fs::read_dir(&group_path)? {
+                        let Ok(frame_entry) = frame_entry else { continue };
+                        let path = frame_entry.path();
+                        if path.is_dir() && !path.is_symlink() {
+                            log::trace!("removing UVC framebased frame {:?}", path);
+                            fs::remove_dir(path)?;
+                        }
+                    }
+                    log::trace!("removing UVC framebased group {:?}", group_path);
+                    fs::remove_dir(group_path)?;
+                }
             }
         }
     }
