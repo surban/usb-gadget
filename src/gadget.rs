@@ -477,6 +477,33 @@ impl Gadget {
 
 /// USB gadget registered with the system.
 ///
+/// A function instance registered in a USB gadget.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RegFunction {
+    /// Function driver name, e.g. "acm", "ecm", "mass_storage".
+    driver: String,
+    /// Instance name, e.g. "composite-0".
+    instance: String,
+}
+
+impl RegFunction {
+    /// Function driver name, e.g. "acm", "ecm", "mass_storage".
+    pub fn driver(&self) -> &str {
+        &self.driver
+    }
+
+    /// Instance name, e.g. "composite-0".
+    pub fn instance(&self) -> &str {
+        &self.instance
+    }
+}
+
+impl fmt::Display for RegFunction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}", self.driver, self.instance)
+    }
+}
+
 /// If this was obtained by calling [`Gadget::bind`], the USB gadget will be
 /// unbound and removed when this is dropped.
 ///
@@ -519,6 +546,28 @@ impl RegGadget {
         } else {
             Ok(Some(data.to_os_string()))
         }
+    }
+
+    /// Returns all function instances registered in this gadget.
+    pub fn functions(&self) -> Result<Vec<RegFunction>> {
+        let func_dir = self.dir.join("functions");
+        let mut functions = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(&func_dir) {
+            for entry in entries {
+                let Ok(entry) = entry else { continue };
+                if !entry.metadata()?.is_dir() {
+                    continue;
+                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                if let Some((driver, instance)) = name.split_once('.') {
+                    functions.push(RegFunction { driver: driver.to_string(), instance: instance.to_string() });
+                }
+            }
+        }
+
+        functions.sort();
+        Ok(functions)
     }
 
     /// Binds the gadget to the specified USB device controller (UDC).
