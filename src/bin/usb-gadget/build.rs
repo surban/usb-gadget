@@ -438,6 +438,7 @@ fn parse_usb_version(s: &str) -> Result<UsbVersion> {
     match s {
         "1.1" => Ok(UsbVersion::V11),
         "2.0" => Ok(UsbVersion::V20),
+        "2.1" => Ok(UsbVersion::V21),
         "3.0" => Ok(UsbVersion::V30),
         "3.1" => Ok(UsbVersion::V31),
         _ => {

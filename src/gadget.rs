@@ -248,6 +248,8 @@ pub enum UsbVersion {
     /// USB 2.0
     #[default]
     V20,
+    /// USB 2.0 with BOS descriptor support (bcdUSB 0x0201), needed for WinUSB.
+    V21,
     /// USB 3.0
     V30,
     /// USB 3.1
@@ -261,6 +263,7 @@ impl From<UsbVersion> for u16 {
         match value {
             UsbVersion::V11 => 0x0110,
             UsbVersion::V20 => 0x0200,
+            UsbVersion::V21 => 0x0201,
             UsbVersion::V30 => 0x0300,
             UsbVersion::V31 => 0x0310,
             UsbVersion::Other(ver) => ver,
