@@ -2,7 +2,7 @@
 
 use rustix::io::Errno;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     ffi::{OsStr, OsString},
     fmt, fs,
     io::{Error, ErrorKind, Result},
@@ -415,7 +415,12 @@ impl Gadget {
         }
 
         let gadget_name = dir.file_name().unwrap().to_string_lossy();
-        let functions: HashSet<_> = self.configs.iter().flat_map(|c| &c.functions).collect();
+        let mut functions = Vec::new();
+        for func in self.configs.iter().flat_map(|c| &c.functions) {
+            if !functions.contains(&func) {
+                functions.push(func);
+            }
+        }
         let mut func_dirs = HashMap::new();
         for (func_idx, &func) in functions.iter().enumerate() {
             let func_dir = dir.join(
@@ -447,6 +452,7 @@ impl Gadget {
                 let config_dir = config_dirs.get(os_desc.config).ok_or_else(|| {
                     Error::new(ErrorKind::InvalidInput, "invalid configuration index in OS descriptor")
                 })?;
+                log::debug!("linking OS descriptor to config dir {}", config_dir.display());
                 symlink(config_dir, os_desc_dir.join(config_dir.file_name().unwrap()))?;
             } else {
                 log::warn!("USB OS descriptor is unsupported by kernel");
