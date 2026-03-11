@@ -1409,6 +1409,18 @@ impl<'a> EndpointControl<'a> {
 /// [`ready`](Self::ready), [`ready_timeout`](Self::ready_timeout), or
 /// [`try_ready`](Self::try_ready) first to ensure space is available.
 /// These also surface errors from previously completed transfers.
+///
+/// # Buffer size and throughput
+///
+/// For best throughput, send data in chunks **much larger** than the endpoint's
+/// maximum packet size (MPS). This allows the kernel to submit multi-packet
+/// USB transfers and reduces per-packet overhead. A good starting point is a
+/// chunk size that is a multiple of the MPS and at least several KiB
+/// (e.g. 16 KiB). Use [`max_packet_size`](Self::max_packet_size) to query the
+/// negotiated MPS at runtime.
+///
+/// Also consider increasing the [queue depth](EndpointDirection::queue_len)
+/// (default: 16) so multiple transfers can be in flight simultaneously.
 #[derive(Debug)]
 pub struct EndpointSender(value::Receiver<EndpointIo>);
 
@@ -1636,6 +1648,25 @@ impl EndpointSender {
 /// When using [`try_recv`](Self::try_recv) directly, call
 /// [`is_ready`](Self::is_ready) first or fetch completed buffers
 /// to ensure space is available.
+///
+/// # Buffer size and throughput
+///
+/// Buffer size has a **major impact** on bulk transfer throughput.
+/// The FunctionFS kernel driver submits one USB transfer per AIO read request.
+/// When the buffer capacity equals the maximum packet size (MPS, typically
+/// 512 bytes for high-speed or 1024 bytes for super-speed), each USB packet
+/// triggers a separate AIO completion — leading to high per-packet overhead
+/// and poor throughput.
+///
+/// Using buffers **much larger** than the MPS (e.g. 16 KiB) allows the kernel
+/// to batch multiple USB packets into a single read, dramatically improving
+/// throughput. A good starting point is a buffer capacity that is a multiple of
+/// the MPS and at least several KiB (e.g. 16 KiB). Use
+/// [`max_packet_size`](Self::max_packet_size) to query the negotiated MPS at
+/// runtime.
+///
+/// For high-throughput workloads, also consider increasing the
+/// [queue depth](EndpointDirection::queue_len) (default: 16).
 ///
 /// # Buffer size and zero-length packets (ZLP)
 ///
