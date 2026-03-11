@@ -194,13 +194,6 @@ impl Config {
         }
     }
 
-    /// Sets the maximum power in mA.
-    #[deprecated(since = "0.7.1", note = "use the field Config::max_power instead")]
-    pub fn set_max_power_ma(&mut self, ma: u16) -> Result<()> {
-        self.max_power = ma;
-        Ok(())
-    }
-
     /// Adds a USB function (interface) to this configuration.
     pub fn add_function(&mut self, function_handle: function::Handle) {
         self.functions.push(function_handle);
@@ -427,7 +420,7 @@ impl Gadget {
         for (func_idx, &func) in functions.iter().enumerate() {
             let func_dir = dir.join(
                 dir.join("functions")
-                    .join(format!("{}.{gadget_name}-{func_idx}", func.get().driver().to_str().unwrap())),
+                    .join(format!("{}.{gadget_name}-{func_idx}", func.get().driver().to_string_lossy())),
             );
             log::debug!("creating function at {}", func_dir.display());
             fs::create_dir(&func_dir)?;
