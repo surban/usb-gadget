@@ -3,6 +3,31 @@
 //! Both, pre-defined USB functions and fully custom implementations of the USB
 //! interface are supported.
 //!
+//! The following pre-defined USB functions, implemented by kernel drivers, are supported:
+//!
+//! * [network interface]: CDC ECM, ECM subset, EEM, NCM, RNDIS
+//! * [serial port]: CDC ACM, generic
+//! * [human interface device (HID)]
+//! * [mass-storage device (MSD)]
+//! * [printer device]
+//! * [musical instrument digital interface (MIDI)]
+//! * [audio device]: UAC1 and UAC2
+//! * [video device] (UVC)
+//!
+//! In addition fully [custom USB functions] can be implemented in user-mode Rust code.
+//!
+//! [network interface]: function::net
+//! [serial port]: function::serial
+//! [human interface device (HID)]: function::hid
+//! [mass-storage device (MSD)]: function::msd
+//! [printer device]: function::printer
+//! [musical instrument digital interface (MIDI)]: function::midi
+//! [audio device]: function::audio
+//! [video device]: function::video
+//! [custom USB functions]: function::custom
+//!
+//! Support for OS-specific descriptors and WebUSB is also provided.
+//!
 //! ### Requirements
 //!
 //! A USB device controller (UDC) supported by Linux is required.
@@ -15,7 +40,7 @@
 //!
 //! ### Usage
 //!
-//! Start defining an USB gadget by calling [`Gadget::new`].
+//! Start defining a USB gadget by calling [`Gadget::new`].
 //! When the gadget is fully specified, call [`Gadget::bind`] to register it with
 //! a [USB device controller (UDC)](Udc).
 
