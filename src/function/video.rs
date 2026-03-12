@@ -8,8 +8,11 @@
 //! # Example
 //!
 //! ```no_run
-//! use usb_gadget::function::video::{Uvc, Frame, Format};
-//! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
+//! use usb_gadget::{
+//!     default_udc,
+//!     function::video::{Format, Frame, Uvc},
+//!     Class, Config, Gadget, Id, Strings,
+//! };
 //!
 //! // Create a new UVC function with the specified frames:
 //! // - 640x360 YUYV format at 15, 30, 60, 120 fps
@@ -24,13 +27,14 @@
 //! ]);
 //!
 //! let udc = default_udc().expect("cannot get UDC");
-//! let reg =
-//!     // USB device descriptor base class 0xEF, 0x02, 0x01: Misc, Interface Association Descriptor
-//!     // Linux Foundation VID Gadget PID
-//!     Gadget::new(Class::new(0xEF, 0x02, 0x01), Id::new(0x1d6b, 0x0104), Strings::new("Clippy Manufacturer", "Rust Video Device", "RUST0123456"))
-//!         .with_config(Config::new("UVC Config 1").with_function(func))
-//!         .bind(&udc)
-//!         .expect("cannot bind to UDC");
+//! let reg = Gadget::new(
+//!     Class::MISCELLANEOUS_IAD,
+//!     Id::LINUX_FOUNDATION_COMPOSITE,
+//!     Strings::new("Clippy Manufacturer", "Rust Video Device", "RUST0123456"),
+//! )
+//! .with_config(Config::new("UVC Config 1").with_function(func))
+//! .bind(&udc)
+//! .expect("cannot bind to UDC");
 //!
 //! println!(
 //!     "UAC2 video {} at {} to {} status {:?}",

@@ -29,7 +29,7 @@
 //! // Register and bind the gadget.
 //! let udc = default_udc().expect("cannot get UDC");
 //! let _reg = Gadget::new(
-//!     Class::new(255, 255, 3),
+//!     Class::vendor_specific(255, 3),
 //!     Id::new(0x1234, 0x5678),
 //!     Strings::new("manufacturer", "product", "serial"),
 //! )
@@ -135,7 +135,7 @@ fn into_read_buffer(buf: aio::Buffer) -> Result<BytesMut> {
 ///     dfu_version: (1, 1),
 /// };
 ///
-/// let dfu_class = Class::new(0xFE, 0x01, 0x01); // Application / DFU / Runtime
+/// let dfu_class = Class::DFU_RUNTIME;
 /// let interface = Interface::new(dfu_class, "DFU").with_custom_desc(dfu.into());
 /// ```
 ///

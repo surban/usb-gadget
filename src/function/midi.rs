@@ -6,8 +6,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use usb_gadget::function::midi::Midi;
-//! use usb_gadget::{default_udc, Class, Config, Gadget, Id, Strings};
+//! use usb_gadget::{default_udc, function::midi::Midi, Class, Config, Gadget, Id, Strings};
 //!
 //! let mut builder = Midi::builder();
 //! builder.id = Some("midi".to_string());
@@ -16,13 +15,14 @@
 //! let (midi, func) = builder.build();
 //!
 //! let udc = default_udc().expect("cannot get UDC");
-//! let reg =
-//!     // USB device descriptor base class 0, 0, 0: use Interface Descriptors
-//!     // Linux Foundation VID Gadget PID
-//!     Gadget::new(Class::new(0, 0, 0), Id::new(0x1d6b, 0x0104), Strings::new("Clippy Manufacturer", "Rust MIDI", "RUST0123456"))
-//!         .with_config(Config::new("MIDI Config 1").with_function(func))
-//!         .bind(&udc)
-//!         .expect("cannot bind to UDC");
+//! let reg = Gadget::new(
+//!     Class::INTERFACE_SPECIFIC,
+//!     Id::LINUX_FOUNDATION_COMPOSITE,
+//!     Strings::new("Clippy Manufacturer", "Rust MIDI", "RUST0123456"),
+//! )
+//! .with_config(Config::new("MIDI Config 1").with_function(func))
+//! .bind(&udc)
+//! .expect("cannot bind to UDC");
 //!
 //! println!(
 //!     "USB MIDI {} at {} to {} status {:?}",

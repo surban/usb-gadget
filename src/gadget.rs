@@ -58,9 +58,82 @@ impl Class {
     /// device.
     ///
     /// Can only be used as device class.
+    ///
+    /// Use [`INTERFACE_SPECIFIC`](Self::INTERFACE_SPECIFIC) instead.
+    #[deprecated(since = "1.1.0", note = "use Class::INTERFACE_SPECIFIC instead")]
     pub const fn interface_specific() -> Self {
         Self::new(0, 0, 0)
     }
+
+    // --- Device-level classes ---
+
+    /// Class information determined from interface descriptors.
+    ///
+    /// This is the most common device-level class and can only be used as device class.
+    pub const INTERFACE_SPECIFIC: Self = Self::new(0x00, 0x00, 0x00);
+
+    /// Miscellaneous device with Interface Association Descriptor (IAD).
+    ///
+    /// Used as device class when the gadget has multiple functions grouped via IADs
+    /// (e.g. composite devices with CDC + other functions, or UVC devices).
+    pub const MISCELLANEOUS_IAD: Self = Self::new(0xEF, 0x02, 0x01);
+
+    // --- Audio (class 0x01) ---
+
+    /// Audio control interface.
+    pub const AUDIO_CONTROL: Self = Self::new(0x01, 0x01, 0x00);
+    /// Audio streaming interface.
+    pub const AUDIO_STREAMING: Self = Self::new(0x01, 0x02, 0x00);
+    /// MIDI streaming interface.
+    pub const AUDIO_MIDISTREAMING: Self = Self::new(0x01, 0x03, 0x00);
+
+    // --- CDC (class 0x02 / 0x0A) ---
+
+    /// Communications Device Class, Abstract Control Model (modem/serial).
+    pub const CDC_ACM: Self = Self::new(0x02, 0x02, 0x01);
+    /// CDC Ethernet Networking Control Model.
+    pub const CDC_ECM: Self = Self::new(0x02, 0x06, 0x00);
+    /// CDC Ethernet Emulation Model.
+    pub const CDC_EEM: Self = Self::new(0x02, 0x0C, 0x07);
+    /// CDC Network Control Model.
+    pub const CDC_NCM: Self = Self::new(0x02, 0x0D, 0x00);
+    /// CDC Data interface.
+    pub const CDC_DATA: Self = Self::new(0x0A, 0x00, 0x00);
+
+    // --- HID (class 0x03) ---
+
+    /// Human Interface Device, no boot protocol.
+    pub const HID: Self = Self::new(0x03, 0x00, 0x00);
+    /// HID boot interface, keyboard protocol.
+    pub const HID_BOOT_KEYBOARD: Self = Self::new(0x03, 0x01, 0x01);
+    /// HID boot interface, mouse protocol.
+    pub const HID_BOOT_MOUSE: Self = Self::new(0x03, 0x01, 0x02);
+
+    // --- Printer (class 0x07) ---
+
+    /// Printer, unidirectional.
+    pub const PRINTER_UNIDIRECTIONAL: Self = Self::new(0x07, 0x01, 0x01);
+    /// Printer, bidirectional.
+    pub const PRINTER_BIDIRECTIONAL: Self = Self::new(0x07, 0x01, 0x02);
+
+    // --- Mass Storage (class 0x08) ---
+
+    /// Mass storage, SCSI transparent command set, bulk-only transport.
+    pub const MASS_STORAGE_SCSI_BULK: Self = Self::new(0x08, 0x06, 0x50);
+
+    // --- Video (class 0x0E) ---
+
+    /// Video control interface.
+    pub const VIDEO_CONTROL: Self = Self::new(0x0E, 0x01, 0x00);
+    /// Video streaming interface.
+    pub const VIDEO_STREAMING: Self = Self::new(0x0E, 0x02, 0x00);
+
+    // --- Application-specific (class 0xFE) ---
+
+    /// Device Firmware Upgrade (DFU), runtime mode.
+    pub const DFU_RUNTIME: Self = Self::new(0xFE, 0x01, 0x01);
+    /// Device Firmware Upgrade (DFU), DFU mode.
+    pub const DFU_MODE: Self = Self::new(0xFE, 0x01, 0x02);
 }
 
 /// USB gadget id.
@@ -77,6 +150,34 @@ impl Id {
     pub const fn new(vendor: u16, product: u16) -> Self {
         Self { vendor, product }
     }
+
+    /// Linux Foundation vendor id.
+    ///
+    /// Intended for development and testing of Linux USB gadgets.
+    /// For production devices, register your own vendor id with the USB-IF
+    /// or obtain one from <https://pid.codes>.
+    pub const LINUX_FOUNDATION_VID: u16 = 0x1d6b;
+
+    /// Linux Foundation serial gadget (CDC ACM).
+    ///
+    /// Intended for development and testing only.
+    pub const LINUX_FOUNDATION_SERIAL: Self = Self::new(0x1d6b, 0x0101);
+    /// Linux Foundation ethernet gadget (RNDIS/CDC).
+    ///
+    /// Intended for development and testing only.
+    pub const LINUX_FOUNDATION_ETHERNET: Self = Self::new(0x1d6b, 0x0102);
+    /// Linux Foundation file-backed storage gadget.
+    ///
+    /// Intended for development and testing only.
+    pub const LINUX_FOUNDATION_STORAGE: Self = Self::new(0x1d6b, 0x0103);
+    /// Linux Foundation multifunction composite gadget.
+    ///
+    /// Intended for development and testing only.
+    pub const LINUX_FOUNDATION_COMPOSITE: Self = Self::new(0x1d6b, 0x0104);
+    /// Linux Foundation FunctionFS gadget.
+    ///
+    /// Intended for development and testing only.
+    pub const LINUX_FOUNDATION_FFS: Self = Self::new(0x1d6b, 0x0105);
 }
 
 /// USB gadget description strings.

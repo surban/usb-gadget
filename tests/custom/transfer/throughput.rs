@@ -108,7 +108,7 @@ fn setup_bench_gadget() -> (
     println!("UDC {} driver={driver} max_speed={max_speed}", udc.name().to_string_lossy());
 
     let reg = Gadget::new(
-        Class::new(255, 255, 0),
+        Class::vendor_specific(255, 0),
         Id::new(vid, pid),
         Strings::new("test", "throughput bench device", "bench-001"),
     )

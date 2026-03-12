@@ -64,10 +64,11 @@ fn setup_gadget_with_id(
         .build();
 
     let udc = default_udc().expect("cannot get UDC");
-    let reg = Gadget::new(Class::new(255, 255, 0), Id::new(vid, pid), Strings::new("test", product, serial))
-        .with_config(Config::new("config").with_function(handle))
-        .bind(&udc)
-        .expect("cannot bind to UDC");
+    let reg =
+        Gadget::new(Class::vendor_specific(255, 0), Id::new(vid, pid), Strings::new("test", product, serial))
+            .with_config(Config::new("config").with_function(handle))
+            .bind(&udc)
+            .expect("cannot bind to UDC");
 
     (reg, custom, ep_rx, ep_tx)
 }

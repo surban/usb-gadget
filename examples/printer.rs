@@ -55,12 +55,13 @@ fn create_printer_gadget() -> Result<RegGadget> {
     builder.pnp_string = Some("Rust PNP".to_string());
 
     let (_, func) = builder.build();
-    let reg =
-        // Linux Foundation VID Gadget PID
-        Gadget::new(Class::interface_specific(), Id::new(0x1d6b, 0x0104), Strings::new("Clippy Manufacturer", "Rusty Printer", "RUST0123456"))
-            .with_config(Config::new("Config 1")
-                .with_function(func))
-            .bind(&udc)?;
+    let reg = Gadget::new(
+        Class::INTERFACE_SPECIFIC,
+        Id::LINUX_FOUNDATION_COMPOSITE,
+        Strings::new("Clippy Manufacturer", "Rusty Printer", "RUST0123456"),
+    )
+    .with_config(Config::new("Config 1").with_function(func))
+    .bind(&udc)?;
 
     Ok(reg)
 }

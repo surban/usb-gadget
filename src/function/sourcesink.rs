@@ -16,8 +16,8 @@
 //!
 //! let udc = default_udc().expect("cannot get UDC");
 //! let reg = Gadget::new(
-//!     Class::new(0xff, 0, 0),
-//!     Id::new(0x1d6b, 0x0104),
+//!     Class::vendor_specific(0, 0),
+//!     Id::LINUX_FOUNDATION_COMPOSITE,
 //!     Strings::new("Manufacturer", "SourceSink", "0123456"),
 //! )
 //! .with_config(Config::new("SourceSink Config 1").with_function(func))

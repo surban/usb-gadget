@@ -45,7 +45,7 @@ fn setup_gadget() -> (usb_gadget::RegGadget, Custom, EndpointReceiver, EndpointS
 
     let udc = default_udc().expect("cannot get UDC");
     let reg = Gadget::new(
-        Class::new(255, 255, 0),
+        Class::vendor_specific(255, 0),
         Id::new(VID, PID),
         Strings::new("test", "ZLP test device", "zlp-test-001"),
     )

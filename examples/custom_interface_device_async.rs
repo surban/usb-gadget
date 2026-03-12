@@ -34,7 +34,7 @@ async fn main() {
 
     let udc = default_udc().expect("cannot get UDC");
     let reg = Gadget::new(
-        Class::new(255, 255, 3),
+        Class::vendor_specific(255, 3),
         Id::new(6, 0x11),
         Strings::new("manufacturer", "custom USB interface", "serial_number"),
     )

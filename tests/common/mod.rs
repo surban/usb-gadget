@@ -85,7 +85,7 @@ pub fn reg_with_os_desc(func: Handle) -> RegGadget {
     let udc = default_udc().expect("cannot get UDC");
 
     let reg = Gadget::new(
-        Class::new(255, 255, 3),
+        Class::vendor_specific(255, 3),
         Id::new(6, 0x11),
         Strings::new("manufacturer", "product with OS descriptor", "serial_number"),
     )

@@ -17,8 +17,8 @@
 //!
 //! let udc = default_udc().expect("cannot get UDC");
 //! let reg = Gadget::new(
-//!     Class::new(0, 0, 0),
-//!     Id::new(0x1d6b, 0x0104),
+//!     Class::INTERFACE_SPECIFIC,
+//!     Id::LINUX_FOUNDATION_COMPOSITE,
 //!     Strings::new("Clippy Manufacturer", "Rust UAC1", "RUST0123456"),
 //! )
 //! .with_config(Config::new("Audio Config 1").with_function(func))
@@ -49,8 +49,8 @@
 //!
 //! let udc = default_udc().expect("cannot get UDC");
 //! let reg = Gadget::new(
-//!     Class::new(0, 0, 0),
-//!     Id::new(0x1d6b, 0x0104),
+//!     Class::INTERFACE_SPECIFIC,
+//!     Id::LINUX_FOUNDATION_COMPOSITE,
 //!     Strings::new("Clippy Manufacturer", "Rust UAC2", "RUST0123456"),
 //! )
 //! .with_config(Config::new("Audio Config 1").with_function(func))
