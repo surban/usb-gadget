@@ -1,5 +1,6 @@
 use std::os::unix::prelude::FileTypeExt;
 
+use serial_test::serial;
 use usb_gadget::function::serial::{Serial, SerialClass};
 
 mod common;
@@ -7,7 +8,6 @@ use common::*;
 
 fn serial(serial_class: SerialClass) {
     init();
-    let _mutex = exclusive();
 
     let mut builder = Serial::builder(serial_class);
     builder.console = Some(false);
@@ -64,25 +64,26 @@ fn serial(serial_class: SerialClass) {
 }
 
 #[test]
+#[serial]
 fn acm() {
     serial(SerialClass::Acm)
 }
 
 #[test]
+#[serial]
 fn generic_serial() {
     serial(SerialClass::Generic)
 }
 
 #[cfg(feature = "tokio")]
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
+#[serial]
 async fn serial_status() {
     use std::time::Duration;
     use tokio::time::sleep;
     use usb_gadget::function::util::State;
 
     init();
-    let _mutex = exclusive();
 
     let mut builder = Serial::builder(SerialClass::Acm);
     builder.console = Some(false);

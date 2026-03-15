@@ -292,9 +292,9 @@ fn run_host_bench(stop: &AtomicBool, driver: &str, max_speed: Speed) {
 }
 
 #[test]
+#[serial]
 fn throughput_benchmark() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

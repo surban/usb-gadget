@@ -25,6 +25,7 @@ use usb_gadget::{
 };
 
 use crate::common::*;
+use serial_test::serial;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 const VID: u16 = 0x1234;
@@ -112,9 +113,9 @@ fn run_event_loop(mut custom: Custom, stop: Arc<AtomicBool>) {
 // Device reads with MPS-sized buffer → gets data, then ZLP separately.
 
 #[test]
+#[serial]
 fn zlp_recv_mps_buffer() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -171,9 +172,9 @@ fn zlp_recv_mps_buffer() {
 // a second read times out. This documents the behavior from issue #17.
 
 #[test]
+#[serial]
 fn zlp_recv_large_buffer() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -239,9 +240,9 @@ fn zlp_recv_large_buffer() {
 // Device sends a ZLP via Bytes::new(). Host reads and expects 0 bytes.
 
 #[test]
+#[serial]
 fn zlp_send_empty() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -282,9 +283,9 @@ fn zlp_send_empty() {
 // Device sends MPS bytes of 0xDD then a ZLP. Host reads data, then ZLP.
 
 #[test]
+#[serial]
 fn zlp_send_data_then_zlp() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -336,9 +337,9 @@ fn zlp_send_data_then_zlp() {
 // send_timeout + flush_timeout properly delivers a ZLP.
 
 #[test]
+#[serial]
 fn zlp_send_single_call() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

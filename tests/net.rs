@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use macaddr::MacAddr6;
 use nusb::MaybeFuture;
@@ -8,7 +9,6 @@ use usb_gadget::function::net::{Net, NetClass};
 
 fn net(net_class: NetClass) {
     init();
-    let _mutex = exclusive();
 
     let dev_addr = MacAddr6::new(0x66, 0xf9, 0x7d, 0xf2, 0x3e, 0x2a);
     let host_addr = MacAddr6::new(0x7e, 0x21, 0xb2, 0xcb, 0xd4, 0x51);
@@ -97,26 +97,31 @@ fn net(net_class: NetClass) {
 }
 
 #[test]
+#[serial]
 fn ecm() {
     net(NetClass::Ecm)
 }
 
 #[test]
+#[serial]
 fn ecm_subset() {
     net(NetClass::EcmSubset)
 }
 
 #[test]
+#[serial]
 fn eem() {
     net(NetClass::Eem)
 }
 
 #[test]
+#[serial]
 fn ncm() {
     net(NetClass::Ncm)
 }
 
 #[test]
+#[serial]
 fn rndis() {
     net(NetClass::Rndis)
 }

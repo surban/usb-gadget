@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::audio::{Channel, Uac2};
 
@@ -12,6 +13,7 @@ const PLAYBACK_SAMPLE_RATE: u32 = 48000;
 const PLAYBACK_SAMPLE_SIZE: u32 = 16 / 8;
 
 #[test]
+#[serial]
 fn uac2() {
     init();
 

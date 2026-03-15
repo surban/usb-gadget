@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::audio::{Channel, Uac1};
 
@@ -12,9 +13,9 @@ const PLAYBACK_SAMPLE_RATE: u32 = 48000;
 const PLAYBACK_SAMPLE_SIZE: u32 = 2;
 
 #[test]
+#[serial]
 fn uac1() {
     init();
-    let _mutex = exclusive();
 
     let (audio, func) = Uac1::new(
         Channel::new(CAPTURE_CHANNEL_MASK, CAPTURE_SAMPLE_RATE, CAPTURE_SAMPLE_SIZE),
@@ -62,9 +63,9 @@ fn uac1() {
 }
 
 #[test]
+#[serial]
 fn uac1_builder() {
     init();
-    let _mutex = exclusive();
 
     let mut builder = Uac1::builder();
     builder.capture.channel = Channel::new(CAPTURE_CHANNEL_MASK, CAPTURE_SAMPLE_RATE, CAPTURE_SAMPLE_SIZE);

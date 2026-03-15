@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::midi::Midi;
 
@@ -7,6 +8,7 @@ const IN_PORTS: u8 = 2;
 const OUT_PORTS: u8 = 3;
 
 #[test]
+#[serial]
 fn midi() {
     init();
 

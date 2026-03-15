@@ -1,13 +1,7 @@
 //! Common test functions.
 #![allow(dead_code)]
 
-use std::{
-    env,
-    io::Result,
-    sync::{Mutex, MutexGuard, Once},
-    thread::sleep,
-    time::Duration,
-};
+use std::{env, io::Result, sync::Once, thread::sleep, time::Duration};
 
 use nusb::MaybeFuture;
 use usb_gadget::{
@@ -114,11 +108,6 @@ pub fn unreg(mut reg: RegGadget) -> Result<bool> {
         sleep(Duration::from_secs(1));
         Ok(true)
     }
-}
-
-pub fn exclusive() -> MutexGuard<'static, ()> {
-    static LOCK: Mutex<()> = Mutex::new(());
-    LOCK.lock().unwrap()
 }
 
 /// Returns `true` if host-side checks should be skipped.

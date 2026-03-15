@@ -135,9 +135,9 @@ pub(super) fn run_host_pipelined() {
 }
 
 #[test]
+#[serial]
 fn transfer() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

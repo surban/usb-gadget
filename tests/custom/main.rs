@@ -2,6 +2,7 @@ use std::{thread, time::Duration};
 use uuid::uuid;
 
 use nusb::MaybeFuture;
+use serial_test::serial;
 use usb_gadget::{
     default_udc,
     function::custom::{Custom, Endpoint, EndpointDirection, Interface, OsExtCompat, OsExtProp},
@@ -16,9 +17,9 @@ mod transfer;
 mod zlp;
 
 #[test]
+#[serial]
 fn custom() {
     init();
-    let _mutex = exclusive();
 
     let (mut ep1_rx, ep1_dir) = EndpointDirection::host_to_device();
     let (mut ep2_tx, ep2_dir) = EndpointDirection::device_to_host();
@@ -68,9 +69,9 @@ fn custom() {
 }
 
 #[test]
+#[serial]
 fn custom_with_os_desc() {
     init();
-    let _mutex = exclusive();
 
     let (mut ep1_rx, ep1_dir) = EndpointDirection::host_to_device();
     let (mut ep2_tx, ep2_dir) = EndpointDirection::device_to_host();
@@ -203,9 +204,9 @@ fn custom_with_os_desc() {
 }
 
 #[test]
+#[serial]
 fn custom_no_disconnect() {
     init();
-    let _mutex = exclusive();
 
     let (reg, ffs_dir) = {
         let (mut ep1_rx, ep1_dir) = EndpointDirection::host_to_device();
@@ -297,9 +298,9 @@ fn custom_no_disconnect() {
 }
 
 #[test]
+#[serial]
 fn custom_ext_init() {
     init();
-    let _mutex = exclusive();
 
     let (reg, ffs_dir) = {
         let mut builder = Custom::builder();

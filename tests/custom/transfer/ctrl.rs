@@ -159,9 +159,9 @@ fn host_stop(intf: &nusb::Interface, if_num: u8) {
 /// Test CtrlReceiver::recv_all (success path) and CtrlSender::send (success path)
 /// via an echo round-trip.
 #[test]
+#[serial]
 fn ctrl_recv_all_and_send() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -200,9 +200,9 @@ fn ctrl_recv_all_and_send() {
 
 /// Test CtrlReceiver::recv (with explicit buffer) via echo round-trip.
 #[test]
+#[serial]
 fn ctrl_recv_buf() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -241,9 +241,9 @@ fn ctrl_recv_buf() {
 
 /// Test CtrlReceiver::halt (explicit stall on host-to-device request).
 #[test]
+#[serial]
 fn ctrl_recv_halt() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -292,9 +292,9 @@ fn ctrl_recv_halt() {
 
 /// Test CtrlSender::halt (explicit stall on device-to-host request).
 #[test]
+#[serial]
 fn ctrl_send_halt() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -341,9 +341,9 @@ fn ctrl_send_halt() {
 
 /// Test CtrlReceiver drop without recv or halt (implicit stall via Drop).
 #[test]
+#[serial]
 fn ctrl_recv_drop_stall() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -392,9 +392,9 @@ fn ctrl_recv_drop_stall() {
 
 /// Test CtrlSender drop without send or halt (implicit stall via Drop).
 #[test]
+#[serial]
 fn ctrl_send_drop_stall() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;
@@ -448,9 +448,9 @@ fn ctrl_send_drop_stall() {
 /// `setup_event`, catching regressions in EL2HLT handling in both `do_halt()`
 /// and `clear_prev_event()`.
 #[test]
+#[serial]
 fn ctrl_drop_recovery_stress() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

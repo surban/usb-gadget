@@ -67,9 +67,9 @@ fn run_device_sync(
 /// Test recv_and_fetch and send_and_flush — the no-timeout synchronous API
 /// reported in issue #21.
 #[test]
+#[serial]
 fn transfer_sync_no_timeout() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

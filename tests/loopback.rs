@@ -1,12 +1,13 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::loopback::Loopback;
 
 #[test]
+#[serial]
 fn loopback() {
     init();
-    let _mutex = exclusive();
 
     let (loopback, func) = Loopback::new();
     let reg = reg(func);
@@ -35,9 +36,9 @@ fn loopback() {
 }
 
 #[test]
+#[serial]
 fn loopback_builder() {
     init();
-    let _mutex = exclusive();
 
     let mut builder = Loopback::builder();
     builder.qlen = Some(32);

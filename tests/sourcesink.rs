@@ -1,12 +1,13 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::sourcesink::SourceSink;
 
 #[test]
+#[serial]
 fn sourcesink() {
     init();
-    let _mutex = exclusive();
 
     let (ss, func) = SourceSink::new();
     let reg = reg(func);
@@ -35,9 +36,9 @@ fn sourcesink() {
 }
 
 #[test]
+#[serial]
 fn sourcesink_builder() {
     init();
-    let _mutex = exclusive();
 
     let mut builder = SourceSink::builder();
     builder.pattern = Some(1);

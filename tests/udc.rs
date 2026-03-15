@@ -1,7 +1,9 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 #[test]
+#[serial]
 fn query_udcs() {
     init();
 

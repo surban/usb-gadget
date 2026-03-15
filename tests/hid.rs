@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::hid::Hid;
 
@@ -7,6 +8,7 @@ const HID_SUBCLASS: u8 = 0;
 const HID_PROTOCOL: u8 = 2;
 
 #[test]
+#[serial]
 fn hid() {
     init();
 

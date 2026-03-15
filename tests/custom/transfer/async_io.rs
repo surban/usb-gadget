@@ -104,10 +104,9 @@ async fn run_device_async(
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
+#[serial]
 async fn transfer_async() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

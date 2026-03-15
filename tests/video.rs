@@ -1,12 +1,13 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use usb_gadget::function::video::{ColorMatching, Format, Frame, Uvc, UvcFrame};
 
 #[test]
+#[serial]
 fn video() {
     init();
-    let _mutex = exclusive();
 
     let mut builder = Uvc::builder().with_frames(vec![
         Frame::new(640, 360, vec![15, 30, 60, 120], Format::Yuyv),
@@ -29,9 +30,9 @@ fn video() {
 }
 
 #[test]
+#[serial]
 fn video_framebased_nv12() {
     init();
-    let _mutex = exclusive();
 
     let builder = Uvc::builder().with_frames(vec![
         UvcFrame::new(640, 480, Format::nv12(), [333333, 500000]),
@@ -46,9 +47,9 @@ fn video_framebased_nv12() {
 }
 
 #[test]
+#[serial]
 fn video_framebased_h264() {
     init();
-    let _mutex = exclusive();
 
     let builder = Uvc::builder().with_frames(vec![UvcFrame::new(1920, 1080, Format::h264(), [333333])]);
     let (video, func) = builder.build();

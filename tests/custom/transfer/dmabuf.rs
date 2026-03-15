@@ -139,9 +139,9 @@ fn run_host_dmabuf(ep_in: nusb::Endpoint<Bulk, In>, ep_out: nusb::Endpoint<Bulk,
 // ─── Test entry point ───────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn transfer_dmabuf() {
     init();
-    let _mutex = exclusive();
 
     if skip_host() {
         return;

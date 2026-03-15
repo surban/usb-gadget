@@ -37,6 +37,7 @@ dma-buf = "0.5"
 dma-heap = "0.4"
 env_logger = "0.11"
 nusb = "0.2"
+serial_test = "3"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "time"] }
 

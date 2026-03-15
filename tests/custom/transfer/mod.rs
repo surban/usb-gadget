@@ -19,6 +19,7 @@ use nusb::{
     transfer::{Bulk, Direction, In, Out},
     MaybeFuture,
 };
+pub use serial_test::serial;
 use std::{
     io::{Read, Write},
     sync::atomic::{AtomicBool, Ordering},

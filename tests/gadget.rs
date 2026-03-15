@@ -1,10 +1,11 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 #[test]
+#[serial]
 fn registered_gadgets() {
     init();
-    let _mutex = exclusive();
 
     let reg = usb_gadget::registered().unwrap();
     for gadget in reg {
@@ -15,17 +16,17 @@ fn registered_gadgets() {
 }
 
 #[test]
+#[serial]
 fn remove_all_gadgets() {
     init();
-    let _mutex = exclusive();
 
     usb_gadget::remove_all().unwrap();
 }
 
 #[test]
+#[serial]
 fn unbind_all_gadgets() {
     init();
-    let _mutex = exclusive();
 
     usb_gadget::unbind_all().unwrap();
 }

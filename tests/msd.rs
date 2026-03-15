@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use serial_test::serial;
 
 use std::{io::Write, thread::sleep, time::Duration};
 use tempfile::NamedTempFile;
@@ -7,6 +8,7 @@ use tempfile::NamedTempFile;
 use usb_gadget::function::msd::{Lun, Msd};
 
 #[test]
+#[serial]
 fn msd() {
     init();
 
