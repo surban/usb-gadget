@@ -1117,12 +1117,16 @@ impl Custom {
 
         let mut buf = [0; 1];
         match self.setup_event.take() {
-            Some(Direction::DeviceToHost) => {
-                let _ = ep0.read(&mut buf)?;
-            }
-            Some(Direction::HostToDevice) => {
-                let _ = ep0.write(&buf)?;
-            }
+            Some(Direction::DeviceToHost) => match ep0.read(&mut buf) {
+                Ok(_) => {}
+                Err(e) if e.raw_os_error() == Some(ffs::EL2HLT) => {}
+                Err(e) => return Err(e),
+            },
+            Some(Direction::HostToDevice) => match ep0.write(&buf) {
+                Ok(_) => {}
+                Err(e) if e.raw_os_error() == Some(ffs::EL2HLT) => {}
+                Err(e) => return Err(e),
+            },
             None => (),
         }
 
@@ -1325,7 +1329,11 @@ impl CtrlSender<'_> {
         let mut file = self.custom.ep0()?;
 
         let mut buf = [0; 1];
-        let _ = file.read(&mut buf)?;
+        match file.read(&mut buf) {
+            Ok(_) => {}
+            Err(e) if e.raw_os_error() == Some(ffs::EL2HLT) => {} // expected from FunctionFS
+            Err(e) => return Err(e),
+        }
 
         self.custom.setup_event = None;
         Ok(())
@@ -1373,7 +1381,8 @@ impl CtrlReceiver<'_> {
     /// Receive all data from the USB host.
     pub fn recv_all(self) -> Result<Vec<u8>> {
         let mut buf = vec![0; self.len()];
-        self.recv(&mut buf)?;
+        let n = self.recv(&mut buf)?;
+        buf.truncate(n);
         Ok(buf)
     }
 
@@ -1398,7 +1407,11 @@ impl CtrlReceiver<'_> {
         let mut file = self.custom.ep0()?;
 
         let buf = [0; 1];
-        let _ = file.write(&buf)?;
+        match file.write(&buf) {
+            Ok(_) => {}
+            Err(e) if e.raw_os_error() == Some(ffs::EL2HLT) => {} // expected from FunctionFS
+            Err(e) => return Err(e),
+        }
 
         self.custom.setup_event = None;
         Ok(())

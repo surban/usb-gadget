@@ -63,6 +63,9 @@ pub const DIR_OUT: u8 = 0x00;
 /// USB direction to host.
 pub const DIR_IN: u8 = 0x80;
 
+/// `EL2HLT` errno returned by FunctionFS when stalling endpoint 0.
+pub const EL2HLT: i32 = 51;
+
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct Flags: u32 {
