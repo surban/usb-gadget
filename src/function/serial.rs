@@ -47,6 +47,7 @@ impl SerialBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Serial, Handle) {
         let dir = FunctionDir::new();
         (Serial { dir: dir.clone() }, Handle::new(SerialFunction { builder: self, dir }))

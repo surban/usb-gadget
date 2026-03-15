@@ -26,6 +26,7 @@ impl OtherBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Other, Handle) {
         let dir = FunctionDir::new();
         (Other { dir: dir.clone() }, Handle::new(OtherFunction { builder: self, dir }))

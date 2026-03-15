@@ -55,6 +55,7 @@ impl LoopbackBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Loopback, Handle) {
         let dir = FunctionDir::new();
         (Loopback { dir: dir.clone() }, Handle::new(LoopbackFunction { builder: self, dir }))

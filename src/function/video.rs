@@ -273,6 +273,7 @@ impl UvcBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Uvc, Handle) {
         let dir = FunctionDir::new();
         (Uvc { dir: dir.clone() }, Handle::new(UvcFunction { builder: self, dir }))

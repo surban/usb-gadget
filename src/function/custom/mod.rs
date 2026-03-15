@@ -677,6 +677,7 @@ impl CustomBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Custom, Handle) {
         let dir = FunctionDir::new();
         let (ep0_tx, ep0_rx) = value::channel();
@@ -708,6 +709,7 @@ impl CustomBuilder {
     ///
     /// This allows usage of the custom interface functionality when the USB gadget has
     /// been registered externally.
+    #[must_use = "consumes the builder"]
     pub fn existing(mut self, ffs_dir: impl AsRef<Path>) -> Result<Custom> {
         self.ffs_dir = Some(ffs_dir.as_ref().to_path_buf());
 
@@ -1311,6 +1313,7 @@ impl CtrlSender<'_> {
     /// Send the response to the USB host.
     ///
     /// Returns the number of bytes sent.
+    #[must_use = "the number of bytes sent may be less than the data length"]
     pub fn send(self, data: &[u8]) -> Result<usize> {
         let mut file = self.custom.ep0()?;
 
@@ -1379,6 +1382,7 @@ impl CtrlReceiver<'_> {
     }
 
     /// Receive all data from the USB host.
+    #[must_use = "consumes the receiver"]
     pub fn recv_all(self) -> Result<Vec<u8>> {
         let mut buf = vec![0; self.len()];
         let n = self.recv(&mut buf)?;
@@ -1389,6 +1393,7 @@ impl CtrlReceiver<'_> {
     /// Receive the data from the USB host into the provided buffer.
     ///
     /// Returns the amount of data received.
+    #[must_use = "the amount of data received may be less than the buffer size"]
     pub fn recv(self, data: &mut [u8]) -> Result<usize> {
         let mut file = self.custom.ep0()?;
 

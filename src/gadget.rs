@@ -454,6 +454,7 @@ impl Gadget {
     ///
     /// At least one [configuration](Config) must be added before the gadget
     /// can be registered.
+    #[must_use = "consumes the gadget"]
     pub fn register(self) -> Result<RegGadget> {
         if self.configs.is_empty() {
             return Err(Error::new(ErrorKind::InvalidInput, "USB gadget must have at least one configuration"));
@@ -571,6 +572,7 @@ impl Gadget {
     ///
     /// At least one [configuration](Config) must be added before the gadget
     /// can be bound.
+    #[must_use = "consumes the gadget"]
     pub fn bind(self, udc: &Udc) -> Result<RegGadget> {
         let reg = self.register()?;
         reg.bind(Some(udc))?;

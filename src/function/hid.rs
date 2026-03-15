@@ -29,6 +29,7 @@ impl HidBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Hid, Handle) {
         let dir = FunctionDir::new();
         (Hid { dir: dir.clone() }, Handle::new(HidFunction { builder: self, dir }))

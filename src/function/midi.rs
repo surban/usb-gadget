@@ -74,6 +74,7 @@ impl MidiBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Midi, Handle) {
         let dir = FunctionDir::new();
         (Midi { dir: dir.clone() }, Handle::new(MidiFunction { builder: self, dir }))

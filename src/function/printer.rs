@@ -46,6 +46,7 @@ impl PrinterBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Printer, Handle) {
         let dir = FunctionDir::new();
         (Printer { dir: dir.clone() }, Handle::new(PrinterFunction { builder: self, dir }))
@@ -92,6 +93,7 @@ impl Printer {
     }
 
     /// Creates a new USB printer function and handle with f_printer defaults
+    #[must_use]
     pub fn new(self) -> (Printer, Handle) {
         Self::builder().build()
     }

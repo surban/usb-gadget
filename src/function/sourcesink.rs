@@ -68,6 +68,7 @@ impl SourceSinkBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (SourceSink, Handle) {
         let dir = FunctionDir::new();
         (SourceSink { dir: dir.clone() }, Handle::new(SourceSinkFunction { builder: self, dir }))

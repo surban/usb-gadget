@@ -105,6 +105,7 @@ impl MsdBuilder {
     /// Build the USB function.
     ///
     /// The returned handle must be added to a USB gadget configuration.
+    #[must_use]
     pub fn build(self) -> (Msd, Handle) {
         let dir = FunctionDir::new();
         (Msd { dir: dir.clone() }, Handle::new(MsdFunction { builder: self, dir }))
