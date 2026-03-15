@@ -6,6 +6,7 @@
 //! Tests synchronous (pipelined), synchronous (no-timeout), async device-side IO,
 //! and bulk throughput benchmarking.
 
+mod ctrl;
 mod dmabuf;
 mod pipelined;
 mod sync;
