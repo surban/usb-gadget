@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning].
   now fails with `ErrorKind::Unsupported` naming the attribute
 - serial function: enabling the console fails if the kernel lacks
   console support instead of being silently ignored
+### Fixed
+- custom function: interface association descriptors are placed before
+  the first interface of the association, report the correct interface
+  count, and may start at an interface other than the first one
 
 ## 1.2.0 - 2026-05-20
 ### Added

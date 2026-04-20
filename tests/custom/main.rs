@@ -5,7 +5,9 @@ use nusb::MaybeFuture;
 use serial_test::serial;
 use usb_gadget::{
     default_udc,
-    function::custom::{Custom, CustomDesc, Endpoint, EndpointDirection, Interface, OsExtCompat, OsExtProp},
+    function::custom::{
+        Association, Custom, CustomDesc, Endpoint, EndpointDirection, Interface, OsExtCompat, OsExtProp,
+    },
     registered, Class, Config, Gadget, Id, Strings,
 };
 
@@ -409,4 +411,59 @@ fn custom_register_failure_cleanup() {
     assert!(registered().unwrap().is_empty(), "partially registered gadget was not removed");
     let mounts = std::fs::read_to_string("/proc/mounts").unwrap();
     assert!(!mounts.lines().any(|l| l.contains("functionfs")), "FunctionFS was not unmounted:\n{mounts}");
+}
+
+#[test]
+#[serial]
+fn custom_association() {
+    init();
+
+    // Interface 0 is standalone, interfaces 1 and 2 form an association.
+    let assoc = Association::new(Class::new(0xff, 0x42, 0x01), "custom association");
+    let (_custom, handle) = Custom::builder()
+        .with_interface(Interface::new(Class::vendor_specific(1, 1), "standalone interface"))
+        .with_interface(Interface::new(Class::vendor_specific(2, 1), "first interface").with_association(&assoc))
+        .with_interface(Interface::new(Class::vendor_specific(2, 2), "second interface").with_association(&assoc))
+        .build();
+
+    let reg = reg(handle);
+
+    check_host(|_device, cfg| {
+        const INTERFACE: u8 = 0x04;
+        const INTERFACE_ASSOCIATION: u8 = 0x0b;
+
+        let descs: Vec<_> = cfg.descriptors().collect();
+        let iads: Vec<_> = descs.iter().filter(|d| d.descriptor_type() == INTERFACE_ASSOCIATION).collect();
+        assert_eq!(iads.len(), 1, "expected exactly one interface association descriptor");
+        let iad = iads[0];
+        println!("interface association descriptor: {:x?}", &iad[..]);
+
+        assert_eq!(iad[2], 1, "bFirstInterface");
+        assert_eq!(iad[3], 2, "bInterfaceCount");
+        assert_eq!(&iad[4..7], &[0xff, 0x42, 0x01], "function class");
+
+        // The IAD must immediately precede the first interface of the association.
+        let iad_pos = descs.iter().position(|d| d.descriptor_type() == INTERFACE_ASSOCIATION).unwrap();
+        let next = &descs[iad_pos + 1];
+        assert_eq!(next.descriptor_type(), INTERFACE, "IAD is not followed by an interface descriptor");
+        assert_eq!(next[2], 1, "IAD is not followed by the first interface of the association");
+    });
+
+    unreg(reg).unwrap();
+}
+
+#[test]
+#[serial]
+fn custom_association_not_adjacent() {
+    let assoc = Association::new(Class::new(0xff, 0x42, 0x01), "custom association");
+    let builder = Custom::builder()
+        .with_interface(Interface::new(Class::vendor_specific(2, 1), "first interface").with_association(&assoc))
+        .with_interface(Interface::new(Class::vendor_specific(1, 1), "standalone interface"))
+        .with_interface(
+            Interface::new(Class::vendor_specific(2, 2), "second interface").with_association(&assoc),
+        );
+
+    let err = builder.ffs_descriptors_and_strings().expect_err("non-adjacent association must be rejected");
+    println!("non-adjacent association rejected: {err}");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
 }
