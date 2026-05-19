@@ -82,10 +82,8 @@ async fn run_device_async(
                     }
                     ctrl_data = req.recv_all().unwrap();
                 }
-                Event::SetupDeviceToHost(req) => {
-                    if req.ctrl_req().request == req::ECHO {
-                        req.send(&ctrl_data).unwrap();
-                    }
+                Event::SetupDeviceToHost(req) if req.ctrl_req().request == req::ECHO => {
+                    req.send(&ctrl_data).unwrap();
                 }
                 _ => {}
             },

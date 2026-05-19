@@ -158,10 +158,8 @@ fn run_device_events(custom: &mut Custom, stop: &AtomicBool, handle_ctrl: bool) 
                     }
                     ctrl_data = req.recv_all().unwrap();
                 }
-                Event::SetupDeviceToHost(req) => {
-                    if req.ctrl_req().request == req::ECHO {
-                        req.send(&ctrl_data).unwrap();
-                    }
+                Event::SetupDeviceToHost(req) if req.ctrl_req().request == req::ECHO => {
+                    req.send(&ctrl_data).unwrap();
                 }
                 _ => {}
             },
