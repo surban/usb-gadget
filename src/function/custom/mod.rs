@@ -1323,6 +1323,18 @@ impl CtrlSender<'_> {
         Ok(n)
     }
 
+    /// Asynchronously send the response to the USB host.
+    ///
+    /// Returns the number of bytes sent.
+    #[cfg(feature = "tokio")]
+    #[must_use = "the number of bytes sent may be less than the data length"]
+    pub async fn send_async(self, data: &[u8]) -> Result<usize> {
+        let ep0 = self.custom.ep0()?;
+        self.custom.setup_event = None;
+        let data = data.to_vec();
+        tokio::task::spawn_blocking(move || (&*ep0).write(&data)).await.map_err(Error::other)?
+    }
+
     /// Stall the endpoint.
     pub fn halt(mut self) -> Result<()> {
         self.do_halt()
@@ -1390,6 +1402,16 @@ impl CtrlReceiver<'_> {
         Ok(buf)
     }
 
+    /// Asynchronously receive all data from the USB host.
+    #[cfg(feature = "tokio")]
+    #[must_use = "consumes the receiver"]
+    pub async fn recv_all_async(self) -> Result<Vec<u8>> {
+        let mut buf = vec![0; self.len()];
+        let n = self.recv_async(&mut buf).await?;
+        buf.truncate(n);
+        Ok(buf)
+    }
+
     /// Receive the data from the USB host into the provided buffer.
     ///
     /// Returns the amount of data received.
@@ -1400,6 +1422,26 @@ impl CtrlReceiver<'_> {
         let n = file.read(data)?;
 
         self.custom.setup_event = None;
+        Ok(n)
+    }
+
+    /// Asynchronously receive the data from the USB host into the provided buffer.
+    ///
+    /// Returns the amount of data received.
+    #[cfg(feature = "tokio")]
+    #[must_use = "the amount of data received may be less than the buffer size"]
+    pub async fn recv_async(self, data: &mut [u8]) -> Result<usize> {
+        let ep0 = self.custom.ep0()?;
+        self.custom.setup_event = None;
+        let len = data.len();
+        let (buf, n) = tokio::task::spawn_blocking(move || {
+            let mut buf = vec![0u8; len];
+            let n = (&*ep0).read(&mut buf)?;
+            Ok::<_, Error>((buf, n))
+        })
+        .await
+        .map_err(Error::other)??;
+        data[..n].copy_from_slice(&buf[..n]);
         Ok(n)
     }
 
