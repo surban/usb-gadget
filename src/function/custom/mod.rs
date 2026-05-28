@@ -770,6 +770,33 @@ impl CustomBuilder {
                 .try_into()
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "too many endpoints"))?;
 
+            // IADs must be defined before the first interface in that association
+            if let Some(assoc) = &intf.association {
+                let iad = match assocs.entry(assoc.clone()) {
+                    Entry::Occupied(ocu) => ocu.into_mut(),
+                    Entry::Vacant(vac) => vac.insert(ffs::InterfaceAssocDesc {
+                        first_interface: interface_number,
+                        interface_count: 0,
+                        function_class: assoc.function_class.class,
+                        function_sub_class: assoc.function_class.sub_class,
+                        function_protocol: assoc.function_class.protocol,
+                        name_idx: add_strings(&assoc.name)?,
+                    }),
+                };
+
+                if iad.first_interface + interface_number != interface_number {
+                    return Err(Error::new(ErrorKind::InvalidInput, "associated interfaces must be adjacent"));
+                }
+
+                iad.interface_count += 1;
+
+                if iad.interface_count == 1 {
+                    fs_descrs.push(iad.clone().into());
+                    hs_descrs.push(iad.clone().into());
+                    ss_descrs.push(iad.clone().into());
+                }
+            }
+
             let if_desc = ffs::InterfaceDesc {
                 interface_number,
                 alternate_setting: 0,
@@ -822,26 +849,6 @@ impl CustomBuilder {
                 ss_descrs.push(ss_comp_desc.into());
             }
 
-            if let Some(assoc) = &intf.association {
-                let iad = match assocs.entry(assoc.clone()) {
-                    Entry::Occupied(ocu) => ocu.into_mut(),
-                    Entry::Vacant(vac) => vac.insert(ffs::InterfaceAssocDesc {
-                        first_interface: interface_number,
-                        interface_count: 0,
-                        function_class: assoc.function_class.class,
-                        function_sub_class: assoc.function_class.sub_class,
-                        function_protocol: assoc.function_class.protocol,
-                        name_idx: add_strings(&assoc.name)?,
-                    }),
-                };
-
-                if iad.first_interface + interface_number != interface_number {
-                    return Err(Error::new(ErrorKind::InvalidInput, "associated interfaces must be adjacent"));
-                }
-
-                iad.interface_count += 1;
-            }
-
             if !intf.os_ext_compat.is_empty() {
                 let os_desc = ffs::OsDesc {
                     interface: interface_number,
@@ -868,12 +875,6 @@ impl CustomBuilder {
                 };
                 os_descrs.push(os_desc);
             }
-        }
-
-        for iad in assocs.into_values() {
-            fs_descrs.push(iad.clone().into());
-            hs_descrs.push(iad.clone().into());
-            ss_descrs.push(iad.clone().into());
         }
 
         let mut flags = ffs::Flags::empty();
