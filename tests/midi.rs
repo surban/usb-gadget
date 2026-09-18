@@ -1,11 +1,14 @@
 mod common;
 use common::*;
+use nusb::MaybeFuture;
 use serial_test::serial;
+use std::time::Duration;
 
 use usb_gadget::function::midi::Midi;
 
 const IN_PORTS: u8 = 2;
 const OUT_PORTS: u8 = 3;
+const INTERFACE_STRING: &str = "Rust MIDI Adapter";
 
 #[test]
 #[serial]
@@ -16,13 +19,32 @@ fn midi() {
     builder.id = Some("midi".to_string());
     builder.in_ports = Some(IN_PORTS);
     builder.out_ports = Some(OUT_PORTS);
+    // Setting the interface string requires Linux 7.0 or later.
+    let has_interface_string = linux_version() >= (7, 0);
+    if has_interface_string {
+        builder.interface_string = Some(INTERFACE_STRING.to_string());
+    }
     let (midi, func) = builder.build();
 
     let reg = reg(func);
 
     println!("midi device at {}", midi.status().path().unwrap().display());
 
-    check_host(|_device, cfg| {
+    check_host(|device, cfg| {
+        // AudioControl interface: Audio class 1, subclass 1.
+        let ac_intf = cfg
+            .interface_alt_settings()
+            .find(|desc| desc.class() == 1 && desc.subclass() == 1)
+            .expect("no AudioControl interface (class 1, subclass 1) found on host");
+        if has_interface_string {
+            let string_index = ac_intf.string_index().expect("AudioControl interface has no string");
+            let interface_string = device
+                .get_string_descriptor(string_index, 0x0409, Duration::from_secs(1))
+                .wait()
+                .expect("cannot read AudioControl interface string");
+            assert_eq!(interface_string, INTERFACE_STRING);
+        }
+
         // MIDI Streaming interface: Audio class 1, subclass 3.
         let intf = cfg.interface_alt_settings().find(|desc| desc.class() == 1 && desc.subclass() == 3);
         assert!(intf.is_some(), "no MIDI Streaming interface (class 1, subclass 3) found on host");

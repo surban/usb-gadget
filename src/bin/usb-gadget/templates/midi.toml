@@ -24,3 +24,4 @@ type = "midi"
 # buflen = 256
 # qlen = 32
 # index = 0
+# interface_string = "USB MIDI"  # AudioControl interface name (Linux 7.0+)

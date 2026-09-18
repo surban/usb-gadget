@@ -27,7 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ─── Defaults ─────────────────────────────────────────────────────────
 
-KERNEL_VERSION="6.15.3"
+KERNEL_VERSION="7.2.10"
 OUTPUT=""
 WORK_DIR="/tmp/ci-kernel-build"
 

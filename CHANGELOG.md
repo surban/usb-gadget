@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## Unreleased
+### Added
+- MIDI function: `interface_string` option for setting the
+  AudioControl interface string (Linux 7.0+), also in CLI
+
 ## 1.2.0 - 2026-05-20
 ### Added
 - custom function: add send_async and recv_async methods 

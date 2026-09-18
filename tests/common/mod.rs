@@ -110,6 +110,14 @@ pub fn unreg(mut reg: RegGadget) -> Result<bool> {
     }
 }
 
+/// Gets the Linux kernel version as `(major, minor)`.
+pub fn linux_version() -> (u16, u16) {
+    let release = std::fs::read_to_string("/proc/sys/kernel/osrelease").expect("cannot read kernel release");
+    let mut parts = release.trim().split(['.', '-']);
+    let mut next = || parts.next().and_then(|p| p.parse().ok()).expect("invalid kernel release");
+    (next(), next())
+}
+
 /// Returns `true` if host-side checks should be skipped.
 ///
 /// Set the `SKIP_HOST` environment variable to skip host-side USB verification.

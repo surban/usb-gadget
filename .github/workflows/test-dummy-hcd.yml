@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  KERNEL_VERSION: "6.15.3"
+  KERNEL_VERSION: "7.2.10"
 
 jobs:
   test-dummy-hcd:

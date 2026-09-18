@@ -277,6 +277,7 @@ fn build_midi(c: &MidiConfig) -> Result<Handle> {
     b.out_ports = c.out_ports;
     b.index = c.index;
     b.qlen = c.qlen;
+    b.interface_string = c.interface_string.clone();
     let (_midi, handle) = b.build();
     Ok(handle)
 }

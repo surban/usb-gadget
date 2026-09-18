@@ -68,6 +68,11 @@ pub struct MidiBuilder {
     pub index: Option<u8>,
     /// USB read request queue length
     pub qlen: Option<u8>,
+    /// USB AudioControl interface string.
+    ///
+    /// Requires Linux 7.0 or later.
+    /// If `None`, the kernel uses `MIDI function`.
+    pub interface_string: Option<String>,
 }
 
 impl MidiBuilder {
@@ -119,6 +124,10 @@ impl Function for MidiFunction {
 
         if let Some(qlen) = self.builder.qlen {
             self.dir.write("qlen", qlen.to_string())?;
+        }
+
+        if let Some(interface_string) = &self.builder.interface_string {
+            self.dir.write("interface_string", interface_string)?;
         }
 
         Ok(())

@@ -215,6 +215,7 @@ pub struct MidiConfig {
     pub out_ports: Option<u8>,
     pub index: Option<u8>,
     pub qlen: Option<u8>,
+    pub interface_string: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
