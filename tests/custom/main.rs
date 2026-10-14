@@ -267,6 +267,9 @@ fn custom_no_disconnect() {
         println!("Getting ep2_tx control");
         let _ep2_control = ep2_tx.control().unwrap();
 
+        // Make sure the host does not see the device from before reactivation.
+        wait_for_device_removal();
+
         println!("Reactivating USB gadget");
         reg.bind(Some(&default_udc().unwrap())).unwrap();
 

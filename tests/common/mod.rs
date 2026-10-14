@@ -1,7 +1,13 @@
 //! Common test functions.
 #![allow(dead_code)]
 
-use std::{env, io::Result, sync::Once, thread::sleep, time::Duration};
+use std::{
+    env,
+    io::Result,
+    sync::Once,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 use nusb::MaybeFuture;
 use usb_gadget::{
@@ -145,6 +151,30 @@ pub fn find_device_with_id(vid: u16, pid: u16) -> nusb::DeviceInfo {
         sleep(Duration::from_millis(500));
     }
     panic!("USB device with VID={vid:#06x} PID={pid:#06x} not found on host");
+}
+
+/// Wait until the test USB device has disappeared from the host.
+///
+/// The host notices the disconnection of a gadget with a delay.
+/// Waits for up to 5 seconds.
+pub fn wait_for_device_removal() {
+    if skip_host() {
+        return;
+    }
+
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(5) {
+        let present = match nusb::list_devices().wait() {
+            Ok(mut iter) => iter.any(|d| d.vendor_id() == TEST_VID && d.product_id() == TEST_PID),
+            Err(_) => true,
+        };
+        if !present {
+            println!("device removed from host after {:?}", start.elapsed());
+            return;
+        }
+        sleep(Duration::from_millis(100));
+    }
+    panic!("USB device with VID={TEST_VID:#06x} PID={TEST_PID:#06x} was not removed from host");
 }
 
 /// Find the test USB device, verify its descriptor strings, open it and
