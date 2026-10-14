@@ -1,8 +1,9 @@
 mod common;
 use common::*;
 use serial_test::serial;
+use std::io::ErrorKind;
 
-use usb_gadget::function::other::Other;
+use usb_gadget::{function::other::Other, registered, Class, Config, Gadget, Id, Strings};
 
 #[test]
 #[serial]
@@ -39,4 +40,30 @@ fn other_ecm() {
     });
 
     unreg(reg).unwrap();
+}
+
+#[test]
+#[serial]
+fn other_unsupported_property() {
+    init();
+
+    let mut builder = Other::builder("ecm").unwrap();
+    builder.set("no_such_property", "1").unwrap();
+    let (_other, func) = builder.build();
+
+    let res = Gadget::new(
+        Class::new(1, 2, 3),
+        Id::new(TEST_VID, TEST_PID),
+        Strings::new(TEST_MANUFACTURER, TEST_PRODUCT, TEST_SERIAL),
+    )
+    .with_config(Config::new("config").with_function(func))
+    .register();
+
+    let err = res.expect_err("registration with unsupported property must fail");
+    println!("registration failed: {err}");
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+    for gadget in registered().unwrap() {
+        gadget.remove().unwrap();
+    }
 }

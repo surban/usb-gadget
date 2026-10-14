@@ -39,7 +39,10 @@ impl SerialClass {
 #[non_exhaustive]
 pub struct SerialBuilder {
     serial_class: SerialClass,
-    /// Console?
+    /// Use the serial port as a kernel console.
+    ///
+    /// Requires the Linux kernel configuration option `CONFIG_U_SERIAL_CONSOLE`.
+    /// Disabling the console succeeds even if the kernel does not support it.
     pub console: Option<bool>,
 }
 
@@ -71,8 +74,11 @@ impl Function for SerialFunction {
 
     fn register(&self) -> Result<()> {
         if let Some(console) = self.builder.console {
-            // Console support is optional.
-            let _ = self.dir.write("console", if console { "1" } else { "0" });
+            match self.dir.write("console", if console { "1" } else { "0" }) {
+                // Without kernel console support, the console is always disabled.
+                Err(err) if err.kind() == ErrorKind::Unsupported && !console => (),
+                res => res?,
+            }
         }
 
         Ok(())

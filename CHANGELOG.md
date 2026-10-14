@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning].
 ### Added
 - MIDI function: `interface_string` option for setting the
   AudioControl interface string (Linux 7.0+), also in CLI
+### Changed
+- setting an attribute that is unsupported by the running kernel
+  now fails with `ErrorKind::Unsupported` naming the attribute
+- serial function: enabling the console fails if the kernel lacks
+  console support instead of being silently ignored
 
 ## 1.2.0 - 2026-05-20
 ### Added

@@ -38,6 +38,12 @@
 //! root permissions are required to configure USB gadgets and
 //! the `configfs` filesystem needs to be mounted.
 //!
+//! Some settings are only supported by newer kernels.
+//! Optional settings are only written when set; if left at `None`, the kernel default is used.
+//! Setting an option that is unsupported by the running kernel makes registration
+//! fail with an error of kind [`ErrorKind::Unsupported`].
+//! The exceptions are OS descriptors and WebUSB, which are skipped with a warning.
+//!
 //! ### Usage
 //!
 //! Start defining a USB gadget by calling [`Gadget::new`].
@@ -53,9 +59,10 @@ compile_error!("usb_gadget only supports Linux");
 use proc_mounts::MountIter;
 use std::{
     ffi::OsStr,
+    fs,
     io::{Error, ErrorKind, Result},
     os::unix::prelude::OsStrExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     sync::OnceLock,
 };
@@ -113,6 +120,20 @@ fn hex_u8_noprefix(value: u8) -> String {
 /// 16-bit value to hexadecimal notation.
 fn hex_u16(value: u16) -> String {
     format!("0x{:04x}", value)
+}
+
+/// Writes a configfs attribute.
+///
+/// Fails with [`ErrorKind::Unsupported`] if the attribute does not exist,
+/// i.e. it is not supported by the running kernel.
+fn write_attr(path: &Path, value: impl AsRef<[u8]>) -> Result<()> {
+    fs::write(path, value).map_err(|err| match path.try_exists() {
+        Ok(false) => Error::new(
+            ErrorKind::Unsupported,
+            format!("attribute {} is not supported by the kernel", path.display()),
+        ),
+        _ => err,
+    })
 }
 
 /// Returns where configfs is mounted.

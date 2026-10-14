@@ -23,7 +23,7 @@ use crate::{
     lang::Language,
     request_module, trim_os_str,
     udc::Udc,
-    Speed,
+    write_attr, Speed,
 };
 
 /// USB gadget ioctl magic byte.
@@ -322,13 +322,13 @@ impl Config {
             attributes |= 1 << 5;
         }
 
-        fs::write(dir.join("bmAttributes"), hex_u8(attributes))?;
-        fs::write(dir.join("MaxPower"), self.max_power.to_string())?;
+        write_attr(&dir.join("bmAttributes"), hex_u8(attributes))?;
+        write_attr(&dir.join("MaxPower"), self.max_power.to_string())?;
 
         for (&lang, desc) in &self.description {
             let lang_dir = dir.join("strings").join(hex_u16(lang.into()));
             fs::create_dir(&lang_dir)?;
-            fs::write(lang_dir.join("configuration"), desc)?;
+            write_attr(&lang_dir.join("configuration"), desc)?;
         }
 
         for func in &self.functions {
@@ -399,8 +399,12 @@ pub struct Gadget {
     /// Maximum speed supported by driver.
     pub max_speed: Option<Speed>,
     /// OS descriptor extension.
+    ///
+    /// Skipped with a warning if unsupported by the kernel.
     pub os_descriptor: Option<OsDescriptor>,
     /// WebUSB extension.
+    ///
+    /// Skipped with a warning if unsupported by the kernel.
     pub web_usb: Option<WebUsb>,
     /// USB device configurations.
     pub configs: Vec<Config>,
@@ -483,28 +487,28 @@ impl Gadget {
 
         log::debug!("registering gadget at {}", dir.display());
 
-        fs::write(dir.join("bDeviceClass"), hex_u8(self.device_class.class))?;
-        fs::write(dir.join("bDeviceSubClass"), hex_u8(self.device_class.sub_class))?;
-        fs::write(dir.join("bDeviceProtocol"), hex_u8(self.device_class.protocol))?;
+        write_attr(&dir.join("bDeviceClass"), hex_u8(self.device_class.class))?;
+        write_attr(&dir.join("bDeviceSubClass"), hex_u8(self.device_class.sub_class))?;
+        write_attr(&dir.join("bDeviceProtocol"), hex_u8(self.device_class.protocol))?;
 
-        fs::write(dir.join("idVendor"), hex_u16(self.id.vendor))?;
-        fs::write(dir.join("idProduct"), hex_u16(self.id.product))?;
+        write_attr(&dir.join("idVendor"), hex_u16(self.id.vendor))?;
+        write_attr(&dir.join("idProduct"), hex_u16(self.id.product))?;
 
-        fs::write(dir.join("bMaxPacketSize0"), hex_u8(self.max_packet_size0))?;
-        fs::write(dir.join("bcdDevice"), hex_u16(self.device_release))?;
-        fs::write(dir.join("bcdUSB"), hex_u16(self.usb_version.into()))?;
+        write_attr(&dir.join("bMaxPacketSize0"), hex_u8(self.max_packet_size0))?;
+        write_attr(&dir.join("bcdDevice"), hex_u16(self.device_release))?;
+        write_attr(&dir.join("bcdUSB"), hex_u16(self.usb_version.into()))?;
 
         if let Some(v) = self.max_speed {
-            fs::write(dir.join("max_speed"), v.to_string())?;
+            write_attr(&dir.join("max_speed"), v.to_string())?;
         }
 
         if let Some(webusb) = &self.web_usb {
             let webusb_dir = dir.join("webusb");
             if webusb_dir.is_dir() {
-                fs::write(webusb_dir.join("bVendorCode"), hex_u8(webusb.vendor_code))?;
-                fs::write(webusb_dir.join("bcdVersion"), hex_u16(webusb.version.into()))?;
-                fs::write(webusb_dir.join("landingPage"), &webusb.landing_page)?;
-                fs::write(webusb_dir.join("use"), "1")?;
+                write_attr(&webusb_dir.join("bVendorCode"), hex_u8(webusb.vendor_code))?;
+                write_attr(&webusb_dir.join("bcdVersion"), hex_u16(webusb.version.into()))?;
+                write_attr(&webusb_dir.join("landingPage"), &webusb.landing_page)?;
+                write_attr(&webusb_dir.join("use"), "1")?;
             } else {
                 log::warn!("WebUSB descriptor is unsupported by kernel");
             }
@@ -514,9 +518,9 @@ impl Gadget {
             let lang_dir = dir.join("strings").join(hex_u16(lang.into()));
             fs::create_dir(&lang_dir)?;
 
-            fs::write(lang_dir.join("manufacturer"), &strs.manufacturer)?;
-            fs::write(lang_dir.join("product"), &strs.product)?;
-            fs::write(lang_dir.join("serialnumber"), &strs.serial_number)?;
+            write_attr(&lang_dir.join("manufacturer"), &strs.manufacturer)?;
+            write_attr(&lang_dir.join("product"), &strs.product)?;
+            write_attr(&lang_dir.join("serialnumber"), &strs.serial_number)?;
         }
 
         let gadget_name = dir.file_name().unwrap().to_string_lossy();
@@ -550,9 +554,9 @@ impl Gadget {
         if let Some(os_desc) = &self.os_descriptor {
             let os_desc_dir = dir.join("os_desc");
             if os_desc_dir.is_dir() {
-                fs::write(os_desc_dir.join("b_vendor_code"), hex_u8(os_desc.vendor_code))?;
-                fs::write(os_desc_dir.join("qw_sign"), &os_desc.qw_sign)?;
-                fs::write(os_desc_dir.join("use"), "1")?;
+                write_attr(&os_desc_dir.join("b_vendor_code"), hex_u8(os_desc.vendor_code))?;
+                write_attr(&os_desc_dir.join("qw_sign"), &os_desc.qw_sign)?;
+                write_attr(&os_desc_dir.join("use"), "1")?;
 
                 let config_dir = config_dirs.get(os_desc.config).ok_or_else(|| {
                     Error::new(ErrorKind::InvalidInput, "invalid configuration index in OS descriptor")

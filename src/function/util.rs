@@ -252,11 +252,13 @@ impl FunctionDir {
     }
 
     /// Write a property.
+    ///
+    /// Fails with [`ErrorKind::Unsupported`] if the property is not supported by the kernel.
     pub fn write(&self, name: impl AsRef<Path>, value: impl AsRef<[u8]>) -> Result<()> {
         let path = self.property_path(name)?;
         let value = value.as_ref();
         log::debug!("setting property {} to {}", path.display(), String::from_utf8_lossy(value));
-        fs::write(path, value)
+        crate::write_attr(&path, value)
     }
 
     /// Create a symbolic link.

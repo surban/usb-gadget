@@ -100,8 +100,8 @@ impl Channel {
 /// Audio device configuration.
 ///
 /// Fields are optional and will be set to f_uac2 default values if not specified, see
-/// drivers/usb/gadget/function/u_uac2.h. Not all fields are supported by all kernels; permission
-/// denied errors may occur if unsupported fields are set.
+/// drivers/usb/gadget/function/u_uac2.h. Not all fields are supported by all kernels;
+/// setting an unsupported field fails with [`ErrorKind::Unsupported`](std::io::ErrorKind::Unsupported).
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Uac2Config {
@@ -343,8 +343,8 @@ impl Uac2 {
 /// Audio device configuration for UAC1.
 ///
 /// Fields are optional and will be set to f_uac1 default values if not specified, see
-/// `drivers/usb/gadget/function/u_uac1.h`. Not all fields are supported by all kernels; permission
-/// denied errors may occur if unsupported fields are set.
+/// `drivers/usb/gadget/function/u_uac1.h`. Not all fields are supported by all kernels;
+/// setting an unsupported field fails with [`ErrorKind::Unsupported`](std::io::ErrorKind::Unsupported).
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Uac1Config {
