@@ -16,19 +16,19 @@ cli = ["dep:clap", "dep:clap_complete", "dep:serde", "dep:toml", "dep:env_logger
 
 [dependencies]
 bitflags = "2.4"
-byteorder = "1"
+byteorder = "1.1"
 bytes = "1.4"
 clap = { version = "4", features = ["derive"], optional = true }
 clap_complete = { version = "4", optional = true }
 env_logger = { version = "0.11", optional = true }
-libc = "0.2"
-log = "0.4"
+libc = "0.2.183"
+log = "0.4.8"
 macaddr = "1.0"
 rustix = { version = "1", features = ["fs", "mount", "event", "system", "time"] }
 proc-mounts = "0.3"
-serde = { version = "1", features = ["derive"], optional = true }
+serde = { version = "1.0.200", features = ["derive"], optional = true }
 strum = { version = "0.28", features = ["derive"] }
-tokio = { version = "1.32", features = ["net", "rt", "sync"], optional = true }
+tokio = { version = "1.53.3", features = ["net", "rt", "sync"], optional = true }
 toml = { version = "1", optional = true }
 uuid = "1"
 
@@ -37,9 +37,9 @@ dma-buf = "0.5"
 dma-heap = "0.4"
 env_logger = "0.11"
 nusb = "0.2"
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "time"] }
+tokio = { version = "1.53.3", features = ["macros", "time"] }
 
 [[example]]
 name = "custom_interface_device_async"

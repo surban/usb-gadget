@@ -531,8 +531,8 @@ impl OsExtProp {
     //         Self::new("DefaultIdleState", u32::from(state))
     //     }
     //
-    //     /// Indicate the amount of time in milliseconds to wait before determining that a device is
-    //     /// idle.
+    //     /// Indicate the amount of time in milliseconds to wait before determining that a
+    //     /// device is idle.
     //     pub fn default_idle_timeout(timeout_ms: u32) -> Self {
     //         Self::new("DefaultIdleTimeout", timeout_ms)
     //     }
@@ -1162,12 +1162,13 @@ impl Custom {
     /// Asynchronously wait for an event to be available.
     #[cfg(feature = "tokio")]
     pub async fn wait_event(&mut self) -> Result<()> {
-        use std::os::fd::AsFd;
         use tokio::io::{unix::AsyncFd, Interest};
 
         let ep0 = self.ep0()?;
 
-        let async_fd = AsyncFd::with_interest(ep0.as_fd(), Interest::READABLE)?;
+        // SAFETY: the borrowed file descriptor remains open and refers to the same file
+        // for the lifetime of `async_fd`, since it is borrowed from `ep0`.
+        let async_fd = unsafe { AsyncFd::register_with_interest(ep0.as_fd(), Interest::READABLE) }?;
         let mut guard = async_fd.readable().await?;
         guard.clear_ready();
 
