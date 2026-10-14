@@ -112,7 +112,7 @@ fn main() {
                 let n = reader.read(&mut buf).expect("cannot read");
                 buf.truncate(n);
 
-                println!("Read {n} bytes: {:x?}", &buf);
+                println!("Read {n} bytes: {:x?}", buf);
 
                 if !buf.iter().all(|x| *x == b) {
                     panic!("wrong data received");

@@ -719,7 +719,7 @@ impl RegGadget {
     ///
     /// If `udc` is `None`, the gadget is unbound from any UDC.
     pub fn bind(&self, udc: Option<&Udc>) -> Result<()> {
-        log::debug!("binding gadget {:?} to {:?}", self, &udc);
+        log::debug!("binding gadget {:?} to {:?}", self, udc);
 
         let name = match udc {
             Some(udc) => udc.name().to_os_string(),

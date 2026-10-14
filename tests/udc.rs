@@ -8,7 +8,7 @@ fn query_udcs() {
     init();
 
     let udcs = usb_gadget::udcs().unwrap();
-    println!("USB device controllers:\n{:#?}", &udcs);
+    println!("USB device controllers:\n{:#?}", udcs);
 
     for udc in udcs {
         println!("Name: {}", udc.name().to_string_lossy());

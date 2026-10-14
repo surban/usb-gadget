@@ -83,8 +83,8 @@ fn midi() {
         // Total IN jacks = in_ports*2 + out_ports*2 (embedded+external for both directions)
         // Actually the kernel creates: per in_port 1 embedded_in + 1 external_out,
         // per out_port 1 external_in + 1 embedded_out.
-        // So: IN jacks = in_ports (embedded) + out_ports (external), OUT jacks = out_ports (embedded) +
-        // in_ports (external).
+        // So: IN jacks = in_ports (embedded) + out_ports (external), OUT jacks = out_ports
+        // (embedded) + in_ports (external).
         let expected_in_jacks = IN_PORTS + OUT_PORTS;
         let expected_out_jacks = OUT_PORTS + IN_PORTS;
         assert_eq!(in_jacks, expected_in_jacks, "expected {expected_in_jacks} MIDI IN Jacks, found {in_jacks}");
