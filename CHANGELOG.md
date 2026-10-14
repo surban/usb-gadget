@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning].
 ### Added
 - MIDI function: `interface_string` option for setting the
   AudioControl interface string (Linux 7.0+), also in CLI
+- `Gadget::keep_on_error` and CLI option `up --keep-on-error` to keep
+  a partially created gadget for debugging
 ### Changed
+- a gadget that fails to register is removed instead of being left
+  partially created in configfs
 - setting an attribute that is unsupported by the running kernel
   now fails with `ErrorKind::Unsupported` naming the attribute
 - serial function: enabling the console fails if the kernel lacks

@@ -408,6 +408,12 @@ pub struct Gadget {
     pub web_usb: Option<WebUsb>,
     /// USB device configurations.
     pub configs: Vec<Config>,
+    /// Keep the partially created gadget in configfs if registration or binding fails.
+    ///
+    /// By default, a gadget that fails to register or bind is removed.
+    /// Enable this to inspect the partial configuration for debugging;
+    /// it then has to be removed manually, e.g. using [`remove_all`].
+    pub keep_on_error: bool,
 }
 
 impl Gadget {
@@ -425,6 +431,7 @@ impl Gadget {
             os_descriptor: None,
             web_usb: None,
             configs: Vec::new(),
+            keep_on_error: false,
         }
     }
 
@@ -458,6 +465,9 @@ impl Gadget {
     ///
     /// At least one [configuration](Config) must be added before the gadget
     /// can be registered.
+    ///
+    /// If registration fails, the partially created gadget is removed,
+    /// unless [`keep_on_error`](Self::keep_on_error) is set.
     #[must_use = "consumes the gadget"]
     pub fn register(self) -> Result<RegGadget> {
         if self.configs.is_empty() {
@@ -486,6 +496,24 @@ impl Gadget {
         };
 
         log::debug!("registering gadget at {}", dir.display());
+
+        // The gadget is removed when `reg` is dropped on failure, unless kept for debugging.
+        let mut reg = RegGadget { dir, attached: true, func_dirs: HashMap::new() };
+        if let Err(err) = self.populate(&mut reg) {
+            if self.keep_on_error {
+                log::warn!("keeping partially registered gadget at {} for debugging", reg.dir.display());
+                reg.detach();
+            }
+            return Err(err);
+        }
+
+        log::debug!("gadget at {} registered", reg.dir.display());
+        Ok(reg)
+    }
+
+    /// Writes the gadget configuration into its configfs directory.
+    fn populate(&self, reg: &mut RegGadget) -> Result<()> {
+        let dir = reg.dir.clone();
 
         write_attr(&dir.join("bDeviceClass"), hex_u8(self.device_class.class))?;
         write_attr(&dir.join("bDeviceSubClass"), hex_u8(self.device_class.sub_class))?;
@@ -530,7 +558,6 @@ impl Gadget {
                 functions.push(func);
             }
         }
-        let mut func_dirs = HashMap::new();
         for (func_idx, &func) in functions.iter().enumerate() {
             let func_dir = dir.join(
                 dir.join("functions")
@@ -539,15 +566,15 @@ impl Gadget {
             log::debug!("creating function at {}", func_dir.display());
             fs::create_dir(&func_dir)?;
 
+            // Track the function before registering it, so that it is cleaned up on failure.
             func.get().dir().set_dir(&func_dir);
+            reg.func_dirs.insert(func.clone(), func_dir);
             func.get().register()?;
-
-            func_dirs.insert(func.clone(), func_dir);
         }
 
         let mut config_dirs = Vec::new();
         for (idx, config) in self.configs.iter().enumerate() {
-            let dir = config.register(&dir, idx + 1, &func_dirs)?;
+            let dir = config.register(&dir, idx + 1, &reg.func_dirs)?;
             config_dirs.push(dir);
         }
 
@@ -568,18 +595,27 @@ impl Gadget {
             }
         }
 
-        log::debug!("gadget at {} registered", dir.display());
-        Ok(RegGadget { dir, attached: true, func_dirs })
+        Ok(())
     }
 
     /// Register and bind USB gadget to a USB device controller (UDC).
     ///
     /// At least one [configuration](Config) must be added before the gadget
     /// can be bound.
+    ///
+    /// If registration or binding fails, the gadget is removed,
+    /// unless [`keep_on_error`](Self::keep_on_error) is set.
     #[must_use = "consumes the gadget"]
     pub fn bind(self, udc: &Udc) -> Result<RegGadget> {
-        let reg = self.register()?;
-        reg.bind(Some(udc))?;
+        let keep_on_error = self.keep_on_error;
+        let mut reg = self.register()?;
+        if let Err(err) = reg.bind(Some(udc)) {
+            if keep_on_error {
+                log::warn!("keeping gadget at {} that failed to bind for debugging", reg.dir.display());
+                reg.detach();
+            }
+            return Err(err);
+        }
         Ok(reg)
     }
 }

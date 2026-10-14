@@ -30,6 +30,9 @@ enum Command {
     Up {
         /// Path to a TOML config file or directory of TOML files.
         path: PathBuf,
+        /// Keep a partially created gadget in configfs if setup fails, for debugging.
+        #[arg(long)]
+        keep_on_error: bool,
     },
     /// Unbind and remove a USB gadget by name.
     Down {
@@ -76,7 +79,7 @@ fn main() {
 
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Command::Up { path } => cmd_up(&path),
+        Command::Up { path, keep_on_error } => cmd_up(&path, keep_on_error),
         Command::Down { names, all } => cmd_down(&names, all),
         Command::List => cmd_list(),
         Command::Check { path } => cmd_check(&path),
@@ -86,7 +89,7 @@ fn run(cli: Cli) -> Result<()> {
     }
 }
 
-fn cmd_up(path: &PathBuf) -> Result<()> {
+fn cmd_up(path: &PathBuf, keep_on_error: bool) -> Result<()> {
     let configs = load_configs(path)?;
     if configs.is_empty() {
         return Err(Error::new(ErrorKind::InvalidInput, "no config files found"));
@@ -104,6 +107,7 @@ fn cmd_up(path: &PathBuf) -> Result<()> {
         };
 
         gadget.name = Some(gadget_name.clone());
+        gadget.keep_on_error = keep_on_error;
 
         let mut reg = gadget.bind(&udc)?;
         reg.detach();

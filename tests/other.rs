@@ -63,7 +63,36 @@ fn other_unsupported_property() {
     println!("registration failed: {err}");
     assert_eq!(err.kind(), ErrorKind::Unsupported);
 
-    for gadget in registered().unwrap() {
+    assert!(registered().unwrap().is_empty(), "partially registered gadget was not removed");
+}
+
+#[test]
+#[serial]
+fn other_unsupported_property_keep_on_error() {
+    init();
+
+    let mut builder = Other::builder("ecm").unwrap();
+    builder.set("no_such_property", "1").unwrap();
+    let (_other, func) = builder.build();
+
+    let mut gadget = Gadget::new(
+        Class::new(1, 2, 3),
+        Id::new(TEST_VID, TEST_PID),
+        Strings::new(TEST_MANUFACTURER, TEST_PRODUCT, TEST_SERIAL),
+    )
+    .with_config(Config::new("config").with_function(func));
+    gadget.keep_on_error = true;
+
+    let err = gadget.register().expect_err("registration with unsupported property must fail");
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+    let gadgets = registered().unwrap();
+    assert_eq!(gadgets.len(), 1, "partially registered gadget was not kept");
+    for gadget in gadgets {
+        let functions = gadget.functions().unwrap();
+        println!("kept gadget {} with functions {functions:?}", gadget.path().display());
+        assert_eq!(functions.len(), 1);
+        assert_eq!(functions[0].driver(), "ecm");
         gadget.remove().unwrap();
     }
 }

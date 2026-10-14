@@ -5,8 +5,8 @@ use nusb::MaybeFuture;
 use serial_test::serial;
 use usb_gadget::{
     default_udc,
-    function::custom::{Custom, Endpoint, EndpointDirection, Interface, OsExtCompat, OsExtProp},
-    Class,
+    function::custom::{Custom, CustomDesc, Endpoint, EndpointDirection, Interface, OsExtCompat, OsExtProp},
+    registered, Class, Config, Gadget, Id, Strings,
 };
 
 #[path = "../common/mod.rs"]
@@ -376,4 +376,34 @@ fn custom_ext_init() {
 
     println!("Unregistering");
     unreg(reg).unwrap();
+}
+
+#[test]
+#[serial]
+fn custom_register_failure_cleanup() {
+    init();
+
+    // FunctionFS rejects device descriptors (type 1) within function descriptors,
+    // thus registration fails after FunctionFS has been mounted.
+    let (_custom, handle) = Custom::builder()
+        .with_interface(
+            Interface::new(Class::vendor_specific(1, 1), "invalid interface")
+                .with_custom_desc(CustomDesc::new(1, vec![0; 16])),
+        )
+        .build();
+
+    let res = Gadget::new(
+        Class::new(1, 2, 3),
+        Id::new(TEST_VID, TEST_PID),
+        Strings::new(TEST_MANUFACTURER, TEST_PRODUCT, TEST_SERIAL),
+    )
+    .with_config(Config::new("config").with_function(handle))
+    .register();
+
+    let err = res.expect_err("registration with invalid descriptor must fail");
+    println!("registration failed: {err}");
+
+    assert!(registered().unwrap().is_empty(), "partially registered gadget was not removed");
+    let mounts = std::fs::read_to_string("/proc/mounts").unwrap();
+    assert!(!mounts.lines().any(|l| l.contains("functionfs")), "FunctionFS was not unmounted:\n{mounts}");
 }
