@@ -5,10 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
-## Unreleased
+## 1.3.0 - 2026-10-14
 ### Added
 - MIDI function: `interface_string` option for setting the
-  AudioControl interface string (Linux 7.0+), also in CLI
+  AudioControl interface string
 - `Gadget::keep_on_error` and CLI option `up --keep-on-error` to keep
   a partially created gadget for debugging
 ### Changed
