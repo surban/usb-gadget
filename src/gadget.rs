@@ -188,11 +188,17 @@ pub struct Strings {
     /// Product name.
     pub product: String,
     /// Serial number.
+    ///
+    /// Should not be empty. The Linux kernel (as of version 7.3) always announces a serial
+    /// number string to the host; if empty, an empty string descriptor is provided instead of
+    /// omitting the serial number.
     pub serial_number: String,
 }
 
 impl Strings {
     /// Creates new USB device strings.
+    ///
+    /// See [`serial_number`](Self::serial_number) regarding empty serial numbers.
     pub fn new(manufacturer: impl AsRef<str>, product: impl AsRef<str>, serial_number: impl AsRef<str>) -> Self {
         Self {
             manufacturer: manufacturer.as_ref().to_string(),

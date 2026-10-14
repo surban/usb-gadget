@@ -262,7 +262,7 @@ impl Interface {
 ///
 /// Associated interfaces must be adjacent.
 ///
-/// As of Linux 7.3, a custom function using interface associations must 
+/// As of Linux 7.3, a custom function using interface associations must
 /// be the first function in its configuration.
 #[derive(Debug, Clone)]
 pub struct Association {
